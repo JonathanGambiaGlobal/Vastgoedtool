@@ -8,3 +8,4 @@ pyproj
 oauth2client 
 gspread
 geopy
+streamlit-folium
