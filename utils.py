@@ -158,7 +158,7 @@ def save_percelen_as_json(percelen: list[dict]) -> None:
     ws.clear()
     ws.append_row(["json_data"])
     for perceel in percelen:
-        json_str = json.dumps(perceel, ensure_ascii=False)
+        json_str = json.dumps(perceel, ensure_ascii=False, default=str)
         ws.append_row([json_str])
 
 def load_percelen_from_json() -> list[dict]:
@@ -242,5 +242,4 @@ def aanvul_regios(df: pd.DataFrame, regio_lijst: list) -> pd.DataFrame:
     if aanvullingen:
         df = pd.concat([df, pd.DataFrame(aanvullingen)], ignore_index=True)
     return df
-
 
