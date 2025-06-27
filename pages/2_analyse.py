@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
 from utils import get_exchange_rate_eur_to_gmd
+from datetime import datetime
 
 def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: int, exchange_rate: float) -> dict:
-    from datetime import datetime
-
     def safe_float(value):
         try:
             return float(value)
@@ -16,6 +15,12 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     investeerders = perceel.get("investeerders", [])
     totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders)
     eigen_inleg = aankoopprijs - totaal_extern
+
+    st.write(f"\n\n📍 Analyse actief perceel: {perceel.get('locatie')}")
+    st.write("🔢 Aankoopprijs (GMD):", aankoopprijs)
+    st.write("📅 Aankoopdatum:", aankoopdatum)
+    st.write("💶 Externe inleg totaal:", totaal_extern)
+    st.write("💼 Eigen inleg:", eigen_inleg)
 
     if eigen_inleg > 0:
         investeerders.append({
@@ -71,16 +76,29 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
             "winstdeling_pct": winstdeling_pct
         })
 
-    # Netto winst is verkoopwaarde minus investering en rente
-    netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
+        st.write(f"👤 Investeerder: {inv.get('naam')}")
+        st.write("  💰 Inleg:", bedrag)
+        st.write("  📈 Rente:", rente)
+        st.write("  🔄 Rentevorm:", rentetype)
+        st.write("  💵 Rente-opbouw:", rente_opbouw)
+        st.write("  📊 Kapitaalkosten:", bedrag + rente_opbouw)
 
-    # Verdeel waardestijging over investeerders
+    netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
     waardestijging = max(0, verkoopwaarde - aankoopprijs)
+
+    st.write("📈 Verwachte verkoopwaarde:", verkoopwaarde)
+    st.write("💸 Totale inleg:", totaal_inleg)
+    st.write("💸 Totale rente:", totaal_rente)
+    st.write("📊 Netto winst:", netto_winst)
+    st.write("📈 Waardestijging:", waardestijging)
+
     for result in investeerder_resultaten:
         winstdeling_pct = result.get("winstdeling_pct", 0)
         winst_aandeel = waardestijging * winstdeling_pct
         result["winstdeling"] = round(winst_aandeel, 2)
         result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
+
+        st.write(f"🧮 Winstdeling {result['naam']}: {winst_aandeel} GMD ({winstdeling_pct*100:.0f}%)")
 
     return {
         "locatie": perceel.get("locatie"),
@@ -94,8 +112,6 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     }
 
 def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
-    from datetime import datetime
-
     def safe_float(value):
         try:
             return float(value)
@@ -147,8 +163,8 @@ def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
         })
 
     netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
-
     waardestijging = max(0, verkoopwaarde - aankoopprijs)
+
     for result in investeerder_resultaten:
         winstdeling_pct = result.get("winstdeling_pct", 0)
         winst_aandeel = waardestijging * winstdeling_pct
@@ -166,7 +182,7 @@ def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
         "investeerders": investeerder_resultaten
     }
 
-# Interface voor actieve en verkochte percelen
+# Interface
 st.subheader("📈 Analyse verkochte percelen")
 exchange_rate = get_exchange_rate_eur_to_gmd()
 if not exchange_rate:
@@ -181,46 +197,37 @@ df = pd.DataFrame(percelen)
 df.columns = df.columns.str.lower()
 verkochte_df = df[df["status"].str.lower() == "verkocht"]
 
+resultaten = []
+
 if verkochte_df.empty:
     st.info("Er zijn nog geen verkochte percelen. Hieronder volgt een prognose van actieve percelen.")
     portfolio_df = df[df["status"].str.lower().isin(["in portfolio", "in planning"])]
     if not portfolio_df.empty:
         groei_pct = st.number_input("Verwachte jaarlijkse waardestijging (%)", min_value=0.0, max_value=100.0, value=5.0)
         horizon = st.slider("Prognoseperiode (jaren)", 1, 15, 5)
-        resultaten = []
         for _, perceel in portfolio_df.iterrows():
             analyse = analyse_portfolio_perceel(perceel, groei_pct, horizon, exchange_rate)
             if analyse:
                 resultaten.append(analyse)
-        if resultaten:
-            df_result = pd.DataFrame(resultaten)
-            st.subheader("📊 Prognose actieve percelen")
-            st.dataframe(df_result[[
-                "locatie", "verkoopwaarde", "totaal_inleg", "totaal_rente", "netto_winst",
-                "verkoopwaarde_eur", "netto_winst_eur"
-            ]].sort_values(by="netto_winst", ascending=False))
-        else:
-            st.info("Geen actieve percelen beschikbaar voor prognose.")
 else:
-    verkoop_resultaten = []
     for _, perceel in verkochte_df.iterrows():
         analyse = analyse_verkocht_perceel(perceel, exchange_rate)
         if analyse:
-            verkoop_resultaten.append({
-                "Locatie": analyse["locatie"],
-                "Verkoopwaarde (GMD)": analyse["verkoopwaarde"],
-                "Totale inleg (GMD)": analyse["totaal_inleg"],
-                "Totale rente (GMD)": analyse["totaal_rente"],
-                "Netto winst (GMD)": analyse["netto_winst"],
-                "Verkoopwaarde (EUR)": analyse["verkoopwaarde_eur"],
-                "Netto winst (EUR)": analyse["netto_winst_eur"],
-                "# Investeerders": len(analyse["investeerders"])
-            })
+            resultaten.append(analyse)
 
-    if verkoop_resultaten:
-        df_verkocht = pd.DataFrame(verkoop_resultaten)
-        st.dataframe(df_verkocht, use_container_width=True)
+if resultaten:
+    df_result = pd.DataFrame(resultaten)
+    if not verkochte_df.empty:
+        st.subheader("📊 Resultaten verkochte percelen")
+    else:
+        st.subheader("📊 Prognose actieve percelen")
 
+    st.dataframe(df_result[[
+        "locatie", "verkoopwaarde", "totaal_inleg", "totaal_rente", "netto_winst",
+        "verkoopwaarde_eur", "netto_winst_eur"
+    ]].sort_values(by="netto_winst", ascending=False))
+
+    if not verkochte_df.empty:
         for _, perceel in verkochte_df.iterrows():
             locatie = perceel.get("locatie", "Onbekend")
             st.markdown(f"#### 👥 Investeerders: {locatie}")
@@ -232,4 +239,8 @@ else:
                     inleg_eur = inv.get("inleg_eur", 0)
                     winst_eur = totaal_eur - inleg_eur
                     rendement_pct = (winst_eur / inleg_eur * 100) if inleg_eur else 0
-                    st.write(f"- {inv['naam']}: kapitaalkosten GMD {inv['kapitaalkosten']:,}, winstdeling GMD {inv.get('winstdeling', 0):,.2f} ({inv.get('winstdeling_pct', 0)*100:.0f}%), totaal: GMD {totaal:,.2f} (EUR {totaal_eur:,.2f}), netto winst: EUR {winst_eur:,.2f} ({rendement_pct:.1f}%)")
+                    st.write(f"- {inv['naam']}: kapitaalkosten GMD {inv['kapitaalkosten']:,}, "
+                             f"winstdeling GMD {inv.get('winstdeling', 0):,.2f} "
+                             f"({inv.get('winstdeling_pct', 0)*100:.0f}%), totaal: GMD {totaal:,.2f} "
+                             f"(EUR {totaal_eur:,.2f}), netto winst: EUR {winst_eur:,.2f} "
+                             f"({rendement_pct:.1f}%)")
