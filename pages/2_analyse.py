@@ -16,12 +16,6 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders)
     eigen_inleg = aankoopprijs - totaal_extern
 
-    st.write(f"\n\n📍 Analyse actief perceel: {perceel.get('locatie')}")
-    st.write("🔢 Aankoopprijs (GMD):", aankoopprijs)
-    st.write("📅 Aankoopdatum:", aankoopdatum)
-    st.write("💶 Externe inleg totaal:", totaal_extern)
-    st.write("💼 Eigen inleg:", eigen_inleg)
-
     if eigen_inleg > 0:
         investeerders.append({
             "naam": "Eigen beheer",
@@ -76,29 +70,14 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
             "winstdeling_pct": winstdeling_pct
         })
 
-        st.write(f"👤 Investeerder: {inv.get('naam')}")
-        st.write("  💰 Inleg:", bedrag)
-        st.write("  📈 Rente:", rente)
-        st.write("  🔄 Rentevorm:", rentetype)
-        st.write("  💵 Rente-opbouw:", rente_opbouw)
-        st.write("  📊 Kapitaalkosten:", bedrag + rente_opbouw)
-
     netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
     waardestijging = max(0, verkoopwaarde - aankoopprijs)
-
-    st.write("📈 Verwachte verkoopwaarde:", verkoopwaarde)
-    st.write("💸 Totale inleg:", totaal_inleg)
-    st.write("💸 Totale rente:", totaal_rente)
-    st.write("📊 Netto winst:", netto_winst)
-    st.write("📈 Waardestijging:", waardestijging)
 
     for result in investeerder_resultaten:
         winstdeling_pct = result.get("winstdeling_pct", 0)
         winst_aandeel = waardestijging * winstdeling_pct
         result["winstdeling"] = round(winst_aandeel, 2)
         result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
-
-        st.write(f"🧮 Winstdeling {result['naam']}: {winst_aandeel} GMD ({winstdeling_pct*100:.0f}%)")
 
     return {
         "locatie": perceel.get("locatie"),
