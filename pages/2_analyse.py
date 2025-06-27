@@ -14,7 +14,7 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders)
     eigen_inleg = aankoopprijs - totaal_extern
     if eigen_inleg > 0:
-        investeerders.append({"naam": "Eigen beheer", "bedrag": eigen_inleg, "rente": 0, "rentetype": "bij verkoop", "winstdeling": 0})
+        investeerders.append({"naam": "Eigen beheer", "bedrag": eigen_inleg, "rente": 0, "rentetype": "bij verkoop", "winstdeling": 1})
 
     if not pd.notnull(aankoopdatum) or aankoopprijs <= 0:
         return None
