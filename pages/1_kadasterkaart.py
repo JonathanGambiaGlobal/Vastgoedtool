@@ -1,12 +1,4 @@
 import streamlit as st
-
-def prepare_percelen_for_saving(percelen: list[dict]) -> list[dict]:
-    from datetime import date
-    def serialize(obj):
-        if isinstance(obj, date):
-            return obj.isoformat()
-        return obj
-    return [json.loads(json.dumps(p, default=serialize)) for p in percelen]
 import pandas as pd
 import json
 from streamlit_folium import st_folium
@@ -14,72 +6,74 @@ import folium
 from folium.plugins import Draw
 from datetime import date
 from utils import get_exchange_rate_eur_to_gmd, save_percelen_as_json, load_percelen_from_json
+from pyproj import Transformer
+
+
+def prepare_percelen_for_saving(percelen: list[dict]) -> list[dict]:
+    """ Serialize dates to string for JSON storage """
+    def serialize(obj):
+        if isinstance(obj, date):
+            return obj.isoformat()
+        return obj
+    return [json.loads(json.dumps(p, default=serialize)) for p in percelen]
 
 
 st.set_page_config(page_title="🧸️ Kadasterkaart", layout="wide")
 
+# Rerun trigger om na opslaan automatisch te herladen
 if st.session_state.get("rerun_trigger") is True:
     st.session_state["rerun_trigger"] = False
-    st.rerun()
+    st.experimental_rerun()
+
+# Scroll naar boven bij laden
 st.markdown("""
     <script>
         window.scrollTo(0, 0);
     </script>
 """, unsafe_allow_html=True)
+
 st.title("🧸️ Interactieve Kadasterkaart")
 
+# Laden percelen en validatie
 if "percelen" not in st.session_state or not st.session_state.percelen:
-    st.session_state.percelen = load_percelen_from_json()
+    loaded = load_percelen_from_json()
+    percelen_valid = []
+    for i, p in enumerate(loaded):
+        if isinstance(p, dict):
+            percelen_valid.append(p)
+        else:
+            st.warning(f"Percel index {i} is geen dict maar {type(p)}, wordt genegeerd.")
+    st.session_state.percelen = percelen_valid
 
+# Sidebar invoer velden voor nieuw perceel
 st.sidebar.header("📝 Perceelinvoer")
 
-# Geen dropdown, altijd lege velden voor nieuw perceel
-locatie = ""
-lengte = 0
-breedte = 0
-status = "In portfolio"
-eigendomstype = "Customary land"
-aankoopdatum = date.today()
-verkoopdatum = None
-aankoopprijs = 0
-aankoopprijs_eur = 0
-verkoopprijs = 0
-verkoopprijs_eur = 0
-investeerders = []
-uploads = {}
-
-locatie = st.sidebar.text_input("📍 locatie", placeholder="Bijv. Sanyang A", value=locatie)
-lengte = st.sidebar.number_input("📏 Lengte (m)", min_value=0, value=lengte)
-breedte = st.sidebar.number_input("📐 Breedte (m)", min_value=0, value=breedte)
-status = st.sidebar.selectbox("📄 Status", ["In portfolio", "Verkocht", "In planning"], index=["In portfolio", "Verkocht", "In planning"].index(status))
+locatie = st.sidebar.text_input("📍 locatie", placeholder="Bijv. Sanyang A", value="")
+lengte = st.sidebar.number_input("📏 Lengte (m)", min_value=0, value=0)
+breedte = st.sidebar.number_input("📐 Breedte (m)", min_value=0, value=0)
+status_opties = ["In portfolio", "Verkocht", "In planning"]
+status = st.sidebar.selectbox("📄 Status", status_opties, index=0)
 wisselkoers = get_exchange_rate_eur_to_gmd()
 
+verkoopdatum = None
+verkoopprijs_eur = 0.0
+verkoopprijs = 0
+
 if status == "Verkocht":
-    verkoopdatum = st.sidebar.date_input("🗕️ Verkoopdatum", value=verkoopdatum if verkoopdatum else date.today())
-    verkoopprijs_eur = st.sidebar.number_input(
-        "💶 Verkoopprijs (EUR)",
-        min_value=0.0,
-        format="%.2f",
-        value=float(verkoopprijs_eur) if verkoopprijs_eur is not None else 0.0
-    )
+    verkoopdatum = st.sidebar.date_input("🗕️ Verkoopdatum", value=date.today())
+    verkoopprijs_eur = st.sidebar.number_input("💶 Verkoopprijs (EUR)", min_value=0.0, format="%.2f", value=0.0)
     if wisselkoers:
         verkoopprijs = round(verkoopprijs_eur * wisselkoers)
         st.sidebar.info(f"≈ {verkoopprijs:,.0f} GMD (koers: {wisselkoers:.2f})")
     else:
-        verkoopprijs = 0
         st.sidebar.warning("Wisselkoers niet beschikbaar — GMD niet omgerekend.")
 else:
-    verkoopdatum = None
     verkoopprijs = None
     verkoopprijs_eur = None
+    verkoopdatum = None
 
-aankoopdatum = st.sidebar.date_input("🗕️ Aankoopdatum", value=aankoopdatum)
-aankoopprijs_eur = st.sidebar.number_input(
-    "💶 Aankoopprijs (EUR)",
-    min_value=0.0,
-    format="%.2f",
-    value=float(aankoopprijs_eur) if aankoopprijs_eur is not None else 0.0
-)
+aankoopdatum = st.sidebar.date_input("🗕️ Aankoopdatum", value=date.today())
+aankoopprijs_eur = st.sidebar.number_input("💶 Aankoopprijs (EUR)", min_value=0.0, format="%.2f", value=0.0)
 if wisselkoers:
     aankoopprijs = round(aankoopprijs_eur * wisselkoers)
     st.sidebar.info(f"≈ {aankoopprijs:,.0f} GMD (koers: {wisselkoers:.2f})")
@@ -87,16 +81,13 @@ else:
     aankoopprijs = 0
     st.sidebar.warning("Wisselkoers niet beschikbaar — GMD niet omgerekend.")
 
+# Investeerders
 st.sidebar.markdown("### 👥 Investeerdersstructuur")
-aantal_investeerders = st.sidebar.number_input(
-    "Aantal investeerders (0 = eigen beheer)",
-    min_value=0,
-    max_value=10,
-    value=int(len(investeerders)) if investeerders is not None else 0,
-    step=1
-)
+aantal_investeerders = st.sidebar.number_input("Aantal investeerders (0 = eigen beheer)", min_value=0, max_value=10, value=0)
+
 inv_input_data = st.session_state.get("investeerders_input", [])
 investeerders = []
+
 if aantal_investeerders == 0:
     inv_input_data = [{
         "naam": "Eigen beheer",
@@ -113,57 +104,32 @@ if aantal_investeerders == 0:
         "winstdeling": 1.0,
         "rentetype": "bij verkoop"
     }]
-    st.session_state["investeerders_input"] = inv_input_data
 else:
     for i in range(1, aantal_investeerders + 1):
         st.sidebar.markdown(f"#### Investeerder {i}")
         inv_data = inv_input_data[i - 1] if i <= len(inv_input_data) else {}
         naam = st.sidebar.text_input(f"Naam {i}", value=inv_data.get("naam", ""), key=f"inv_naam_{i}")
-        bedrag_eur = st.sidebar.number_input(
-            f"Bedrag {i} (EUR)",
-            min_value=0.0,
-            format="%.2f",
-            value=float(inv_data.get("bedrag_eur", 0.0)) if inv_data.get("bedrag_eur") is not None else 0.0,
-            key=f"inv_bedrag_eur_{i}"
-        )
+        bedrag_eur = st.sidebar.number_input(f"Bedrag {i} (EUR)", min_value=0.0, format="%.2f", value=inv_data.get("bedrag_eur", 0.0), key=f"inv_bedrag_eur_{i}")
         bedrag = round(bedrag_eur * wisselkoers) if wisselkoers else 0
-        rente = st.sidebar.number_input(
-            f"Rente {i} (%)",
-            min_value=0.0,
-            max_value=100.0,
-            step=0.1,
-            value=float(inv_data.get("rente", 0.0)) * 100 if inv_data.get("rente") is not None else 0.0,
-            key=f"inv_rente_{i}"
-        )
-        winst = st.sidebar.number_input(
-            f"Winstdeling {i} (%)",
-            min_value=0.0,
-            max_value=100.0,
-            step=1.0,
-            value=float(inv_data.get("winstdeling", 0.0)) * 100 if inv_data.get("winstdeling") is not None else 0.0,
-            key=f"inv_winst_{i}"
-        )
-        rentetype = st.sidebar.selectbox(
-            f"Rentevorm {i}",
-            options=["maandelijks", "jaarlijks", "bij verkoop"],
-            index=["maandelijks", "jaarlijks", "bij verkoop"].index(inv_data.get("rentetype", "maandelijks")),
-            key=f"inv_rentetype_{i}"
-        )
+        rente = st.sidebar.number_input(f"Rente {i} (%)", min_value=0.0, max_value=100.0, step=0.1, value=inv_data.get("rente", 0.0)*100, key=f"inv_rente_{i}") / 100
+        winst = st.sidebar.number_input(f"Winstdeling {i} (%)", min_value=0.0, max_value=100.0, step=1.0, value=inv_data.get("winstdeling", 0.0)*100, key=f"inv_winst_{i}") / 100
+        rentetype = st.sidebar.selectbox(f"Rentevorm {i}", ["maandelijks", "jaarlijks", "bij verkoop"], index=["maandelijks", "jaarlijks", "bij verkoop"].index(inv_data.get("rentetype", "maandelijks")), key=f"inv_rentetype_{i}")
+
         if naam and bedrag > 0:
             investeerders.append({
                 "naam": naam,
                 "bedrag": bedrag,
                 "bedrag_eur": bedrag_eur,
-                "rente": rente / 100,
-                "winstdeling": winst / 100,
+                "rente": rente,
+                "winstdeling": winst,
                 "rentetype": rentetype
             })
 
-# Bijwerken van de inputdata — niet opnieuw aanmaken
 st.session_state["investeerders_input"] = inv_input_data
 
+# Documenten
 st.sidebar.markdown("### 📋 Documenten")
-eigendomstype = st.sidebar.selectbox("Eigendomsvorm", ["Customary land", "Freehold land"], index=["Customary land", "Freehold land"].index(eigendomstype))
+eigendomstype = st.sidebar.selectbox("Eigendomsvorm", ["Customary land", "Freehold land"], index=["Customary land", "Freehold land"].index("Customary land"))
 
 vereiste_docs = {
     "Freehold land": [
@@ -195,13 +161,17 @@ for doc in vereiste_docs[eigendomstype]:
     with col2:
         st.file_uploader(f"Upload {doc}", key=doc)
 
-# Voeg polygon-tool toe aan kaart
+# Folium map initialisatie met polygon tool
 start_coords = [13.3085, -16.6800]
 m = folium.Map(location=start_coords, zoom_start=18, tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid")
 Draw(export=False).add_to(m)
 
-# ▼▼▼ TOON BESTAANDE PERCELEN OP KAART ▼▼▼
+# Toon bestaande percelen, met check voor correcte dict structuur
 for perceel in st.session_state.percelen:
+    if not isinstance(perceel, dict):
+        st.warning(f"Percel is geen dict maar {type(perceel)}, wordt overgeslagen: {perceel}")
+        continue
+
     polygon = perceel.get("polygon")
     tooltip = perceel.get("locatie", "Onbekend")
     popup_html = f"""
@@ -228,14 +198,12 @@ for perceel in st.session_state.percelen:
                 popup=folium.Popup(popup_html, max_width=300),
                 icon=folium.Icon(color="blue", icon="info-sign")
             ).add_to(m)
-# ▲▲▲ EINDE: Toon bestaande percelen
 
-# ✅ Container-wrapped folium output om witruimte te beperken
 with st.container():
     output = st_folium(m, width=1000, height=500)
     st.markdown("", unsafe_allow_html=True)
 
-# 🛠️ Perceelbeheer per perceel
+# Percelen beheer sectie
 st.subheader("✏️ Beheer percelen")
 col1, col2 = st.columns(2)
 with col1:
@@ -247,15 +215,18 @@ with col2:
         st.session_state["percelen"] = load_percelen_from_json()
         st.success("Percelen zijn opnieuw geladen.")
 
+# Perceel details bewerken
 for i, perceel in enumerate(st.session_state.percelen):
-    verkoopprijs_eur_edit = 0.0
+    if not isinstance(perceel, dict):
+        st.warning(f"Percel op index {i} is geen dict, wordt overgeslagen: {perceel}")
+        continue
+
     naam = perceel.get("locatie", f"Perceel {i+1}")
     with st.expander(f"📍 {naam}", expanded=False):
-        # ✏️ Volledige bewerkbare velden per perceel
         perceel["locatie"] = st.text_input("📍 Locatie", value=perceel.get("locatie", ""), key=f"locatie_{i}")
         perceel["lengte"] = st.number_input("📏 Lengte (m)", min_value=0, value=perceel.get("lengte", 0), key=f"lengte_{i}")
         perceel["breedte"] = st.number_input("📐 Breedte (m)", min_value=0, value=perceel.get("breedte", 0), key=f"breedte_{i}")
-        perceel["status"] = st.selectbox("📄 Status", ["In portfolio", "Verkocht", "In planning"], index=["In portfolio", "Verkocht", "In planning"].index(perceel.get("status", "In portfolio")), key=f"status_change_{i}")
+        perceel["status"] = st.selectbox("📄 Status", status_opties, index=status_opties.index(perceel.get("status", "In portfolio")), key=f"status_change_{i}")
         perceel["eigendomstype"] = st.selectbox("📁 Eigendomsvorm", ["Customary land", "Freehold land"], index=["Customary land", "Freehold land"].index(perceel.get("eigendomstype", "Customary land")), key=f"eigendom_{i}")
 
         perceel["aankoopdatum"] = st.date_input("📅 Aankoopdatum", value=pd.to_datetime(perceel.get("aankoopdatum", date.today())), key=f"aankoopdatum_{i}")
@@ -300,12 +271,12 @@ for i, perceel in enumerate(st.session_state.percelen):
             if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
                 perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
-        success_placeholder = st.empty()
-        success_placeholder.success(f"Wijzigingen aan {naam} opgeslagen.")
+            st.success(f"Wijzigingen aan {naam} opgeslagen.")
+
         nieuwe_status = st.selectbox(
             "📄 Wijzig status",
-            ["In portfolio", "Verkocht", "In planning"],
-            index=["In portfolio", "Verkocht", "In planning"].index(perceel.get("status", "In portfolio")),
+            status_opties,
+            index=status_opties.index(perceel.get("status", "In portfolio")),
             key=f"status_{i}"
         )
         if nieuwe_status != perceel["status"]:
@@ -313,9 +284,7 @@ for i, perceel in enumerate(st.session_state.percelen):
             if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
                 perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
-        success_placeholder = st.empty()
-        success_placeholder.success(f"Status van {naam} gewijzigd naar: {nieuwe_status}")
-
+            st.success(f"Status van {naam} gewijzigd naar: {nieuwe_status}")
 
         st.markdown(f"**Eigendom:** {perceel.get('eigendomstype', '-')}")
         st.markdown(f"**Investeerders:** {perceel.get('investeerders', '-')}")
@@ -324,20 +293,17 @@ for i, perceel in enumerate(st.session_state.percelen):
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
             st.session_state["rerun_trigger"] = True
 
-# 🔁 Coördinaten handmatig invoeren
-from pyproj import Transformer
-
+# Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
 coord_type = st.sidebar.radio("Coördinatentype", ["UTM", "Latitude/Longitude"], index=1)
 
 polygon_coords = []
-for i in range(1, 6):
+for idx in range(1, 6):
     col1, col2 = st.sidebar.columns(2)
-    x = col1.text_input(f"X{i}", key=f"x_{i}")
-    y = col2.text_input(f"Y{i}", key=f"y_{i}")
+    x = col1.text_input(f"X{idx}", key=f"x_{idx}")
+    y = col2.text_input(f"Y{idx}", key=f"y_{idx}")
     try:
         if coord_type == "UTM":
-            # EPSG:32628 = UTM zone 28N (pas aan indien andere zone gebruikt wordt)
             transformer = Transformer.from_crs("epsg:32628", "epsg:4326", always_xy=True)
             lon, lat = transformer.transform(float(x), float(y))
         else:
@@ -345,29 +311,34 @@ for i in range(1, 6):
             lon = float(x)
         if lat and lon:
             polygon_coords.append([lat, lon])
-    except:
+    except Exception:
         pass
 
-
-# ⛔ overschrijf polygon_coords alleen als er getekend is
-if len(polygon_coords) < 3:
+# Bij minder dan 3 punten is polygon ongeldig
+if len(polygon_coords) > 0 and len(polygon_coords) < 3:
     st.sidebar.error("❗ Polygon moet minstens 3 punten bevatten.")
 
-if output.get("last_active_drawing") and not polygon_coords:
-    geom = output["last_active_drawing"].get("geometry", {})
-    if geom.get("type") == "Polygon":
-        polygon_coords = geom.get("coordinates", [[]])[0]
-        polygon_coords = [[coord[1], coord[0]] for coord in polygon_coords]
+# Overschrijf polygon_coords alleen als er getekend is in Folium
+if output := st.session_state.get("output", None):
+    last_drawing = output.get("last_active_drawing", None)
+    if last_drawing:
+        geom = last_drawing.get("geometry", {})
+        if geom.get("type") == "Polygon":
+            coords = geom.get("coordinates", [[]])[0]
+            polygon_coords = [[c[1], c[0]] for c in coords]
 
 toevoegen = st.sidebar.button("➕ Voeg perceel toe")
 
 if toevoegen:
+    # Validatie
     if not locatie:
         st.sidebar.error("❗ Vul een locatie in.")
     elif any(p.get("locatie") == locatie for p in st.session_state["percelen"]):
         st.sidebar.warning("⚠️ Er bestaat al een perceel met deze locatie.")
     elif not investeerders:
         st.sidebar.error("❗ Voeg minimaal één investeerder toe of kies 'Eigen beheer'.")
+    elif len(polygon_coords) < 3:
+        st.sidebar.error("❗ Polygon moet minstens 3 punten bevatten.")
     else:
         perceel = {
             "locatie": locatie,
@@ -389,6 +360,5 @@ if toevoegen:
         st.session_state.percelen.append(perceel)
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state.percelen))
         st.sidebar.success(f"Perceel '{locatie}' toegevoegd en opgeslagen.")
-
 
 
