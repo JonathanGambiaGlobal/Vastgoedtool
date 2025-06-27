@@ -1,4 +1,12 @@
 import streamlit as st
+
+def prepare_percelen_for_saving(percelen: list[dict]) -> list[dict]:
+    from datetime import date
+    def serialize(obj):
+        if isinstance(obj, date):
+            return obj.isoformat()
+        return obj
+    return [json.loads(json.dumps(p, default=serialize)) for p in percelen]
 import pandas as pd
 import json
 from streamlit_folium import st_folium
@@ -232,7 +240,7 @@ st.subheader("✏️ Beheer percelen")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("💾 Percelen opslaan"):
-        save_percelen_as_json([json.loads(json.dumps(p, default=str)) for p in st.session_state["percelen"]])
+        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.success("Percelen zijn opgeslagen naar Google Sheet.")
 with col2:
     if st.button("📤 Percelen opnieuw laden"):
@@ -291,7 +299,7 @@ for i, perceel in enumerate(st.session_state.percelen):
             perceel["aankoopdatum"] = perceel["aankoopdatum"].strftime("%Y-%m-%d") if isinstance(perceel["aankoopdatum"], date) else perceel["aankoopdatum"]
             if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
                 perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
-            save_percelen_as_json([json.loads(json.dumps(p, default=str)) for p in st.session_state["percelen"]])
+            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         success_placeholder = st.empty()
         success_placeholder.success(f"Wijzigingen aan {naam} opgeslagen.")
         nieuwe_status = st.selectbox(
@@ -304,7 +312,7 @@ for i, perceel in enumerate(st.session_state.percelen):
             perceel["status"] = nieuwe_status
             if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
                 perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
-            save_percelen_as_json([json.loads(json.dumps(p, default=str)) for p in st.session_state["percelen"]])
+            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         success_placeholder = st.empty()
         success_placeholder.success(f"Status van {naam} gewijzigd naar: {nieuwe_status}")
 
@@ -313,7 +321,7 @@ for i, perceel in enumerate(st.session_state.percelen):
         st.markdown(f"**Investeerders:** {perceel.get('investeerders', '-')}")
         if st.button(f"🗑️ Verwijder perceel", key=f"verwijder_{i}"):
             st.session_state["percelen"].pop(i)
-            save_percelen_as_json(st.session_state["percelen"])
+            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
             st.session_state["rerun_trigger"] = True
 
 # 🔁 Coördinaten handmatig invoeren
@@ -376,7 +384,7 @@ if toevoegen:
             "verkoopprijs_eur": verkoopprijs_eur if wisselkoers else None
         }
         st.session_state.percelen.append(perceel)
-        save_percelen_as_json(st.session_state.percelen)
+        save_percelen_as_json(prepare_percelen_for_saving(st.session_state.percelen))
         st.sidebar.success(f"Perceel '{locatie}' toegevoegd en opgeslagen.")
 
 
