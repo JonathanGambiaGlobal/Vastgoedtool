@@ -350,7 +350,10 @@ for i in range(1, 6):
 
 
 # ⛔ overschrijf polygon_coords alleen als er getekend is
-if output.get("last_active_drawing"):
+if len(polygon_coords) < 3:
+    st.sidebar.error("❗ Polygon moet minstens 3 punten bevatten.")
+
+if output.get("last_active_drawing") and not polygon_coords:
     geom = output["last_active_drawing"].get("geometry", {})
     if geom.get("type") == "Polygon":
         polygon_coords = geom.get("coordinates", [[]])[0]
@@ -386,7 +389,6 @@ if toevoegen:
         st.session_state.percelen.append(perceel)
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state.percelen))
         st.sidebar.success(f"Perceel '{locatie}' toegevoegd en opgeslagen.")
-
 
 
 
