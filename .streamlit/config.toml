@@ -1,0 +1,7 @@
+[theme]
+base = "light"
+primaryColor = "#00b394"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#00b394"
+textColor = "#000000"  # zwarte tekst op wit
+font = "sans serif"
