@@ -9,7 +9,6 @@ import gspread
 from geopy.distance import geodesic
 import json
 
-
 # 🟡 1. Wisselkoers ophalen via FX Rates API
 ttldays=3600
 @st.cache_data(ttl=ttldays)
@@ -243,3 +242,28 @@ def aanvul_regios(df: pd.DataFrame, regio_lijst: list) -> pd.DataFrame:
         df = pd.concat([df, pd.DataFrame(aanvullingen)], ignore_index=True)
     return df
 
+# 🔁 Pipeline-rendering per perceel
+def render_pipeline(huidige_fase: str, fase_status: dict = None) -> str:
+    PIPELINE_FASEN = [
+        "Oriëntatie",
+        "In onderhandeling",
+        "Te kopen",
+        "Aangekocht",
+        "Geregistreerd",
+        "In beheer",
+        "In verkoop",
+        "Verkocht"
+    ]
+    
+    symbols = []
+    actief_bereikt = False
+    for fase in PIPELINE_FASEN:
+        if fase_status and fase_status.get(fase):
+            symbool = "✅"
+        elif not actief_bereikt and fase == huidige_fase:
+            symbool = "🔵"
+            actief_bereikt = True
+        else:
+            symbool = "⚪"
+        symbols.append(f"{symbool} {fase}")
+    return " → ".join(symbols)
