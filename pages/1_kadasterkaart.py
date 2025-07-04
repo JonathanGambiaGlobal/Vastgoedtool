@@ -1,4 +1,11 @@
 import streamlit as st
+
+
+st.set_page_config(page_title="Kadasterkaart", layout="wide")
+
+st.image("QG.png", width=180)
+
+
 import pandas as pd
 import json
 from streamlit_folium import st_folium
@@ -7,6 +14,40 @@ from folium.plugins import Draw
 from datetime import date
 from utils import get_exchange_rate_eur_to_gmd, save_percelen_as_json, load_percelen_from_json
 from pyproj import Transformer
+from utils import render_pipeline
+
+# Pipelinefases en documentvereisten per fase
+PIPELINE_FASEN = [
+    "Oriëntatie",
+    "In onderhandeling",
+    "Te kopen",
+    "Aangekocht",
+    "Geregistreerd",
+    "In beheer",
+    "In verkoop",
+    "Verkocht"
+]
+
+actiepunten_per_fase = {
+    "Oriëntatie": ["Coördinaten controleren", "Betrouwbaarheidscheck"],
+    "In onderhandeling": ["Prijsbespreking afronden"],
+    "Te kopen": ["Documenten verzamelen", "Contract check"],
+    "Aangekocht": ["Registratie voorbereiden"],
+    "Geregistreerd": ["Controle eigendomsbewijs"],
+    "In beheer": ["Beheersplan opstellen"],
+    "In verkoop": ["Marketing starten"],
+    "Verkocht": ["Overdrachtscontrole"]
+}
+
+documentvereisten_per_fase = {
+    "In onderhandeling": ["ID-verkoper"],
+    "Te kopen": ["Sale Agreement", "Sketch Plan"],
+    "Aangekocht": ["Transfer of Ownership Form"],
+    "Geregistreerd": ["Land Use Report", "Rates (grondbelasting) ontvangstbewijs"],
+    "In verkoop": ["Split Plan"],
+    "Verkocht": ["Verkoopcontract", "Nieuwe eigenaar ID"]
+}
+
 
 
 def prepare_percelen_for_saving(percelen: list[dict]) -> list[dict]:
@@ -18,7 +59,6 @@ def prepare_percelen_for_saving(percelen: list[dict]) -> list[dict]:
     return [json.loads(json.dumps(p, default=serialize)) for p in percelen]
 
 
-st.set_page_config(page_title="🧸️ Kadasterkaart", layout="wide")
 
 # Rerun trigger om na opslaan automatisch te herladen
 if st.session_state.get("rerun_trigger") is True:
@@ -32,7 +72,7 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-st.title("🧸️ Interactieve Kadasterkaart")
+st.title("Interactieve Kadasterkaart")
 
 # Laden percelen en validatie
 if "percelen" not in st.session_state or not st.session_state.percelen:
@@ -51,15 +91,18 @@ st.sidebar.header("📝 Perceelinvoer")
 locatie = st.sidebar.text_input("📍 locatie", placeholder="Bijv. Sanyang A", value="")
 lengte = st.sidebar.number_input("📏 Lengte (m)", min_value=0, value=0)
 breedte = st.sidebar.number_input("📐 Breedte (m)", min_value=0, value=0)
-status_opties = ["In portfolio", "Verkocht", "In planning"]
-status = st.sidebar.selectbox("📄 Status", status_opties, index=0)
+dealstage = st.sidebar.selectbox(
+    "🔁 Pipelinefase",
+    PIPELINE_FASEN,
+    index=PIPELINE_FASEN.index("Oriëntatie")
+)
 wisselkoers = get_exchange_rate_eur_to_gmd()
 
 verkoopdatum = None
 verkoopprijs_eur = 0.0
 verkoopprijs = 0
 
-if status == "Verkocht":
+if dealstage == "Verkocht":
     verkoopdatum = st.sidebar.date_input("🗕️ Verkoopdatum", value=date.today())
     verkoopprijs_eur = st.sidebar.number_input("💶 Verkoopprijs (EUR)", min_value=0.0, format="%.2f", value=0.0)
     if wisselkoers:
@@ -177,7 +220,6 @@ for perceel in st.session_state.percelen:
     popup_html = f"""
     <b>{tooltip}</b><br>
     Investeerders: {[i.get('naam') for i in perceel.get('investeerders', [])]}<br>
-    Status: {perceel.get('status', 'onbekend')}<br>
     Eigendom: {perceel.get('eigendomstype', 'onbekend')}<br>
     Documenten: {[doc for doc, aanwezig in perceel.get('uploads', {}).items() if aanwezig]}
     """
@@ -203,6 +245,31 @@ with st.container():
     output = st_folium(m, width=1000, height=500)
     st.markdown("", unsafe_allow_html=True)
 
+st.markdown("#### 🧭 Procesfase (Pipeline)")
+
+# Dealstage selecteren
+dealstage = st.selectbox(
+    "Pipeline status",
+    PIPELINE_FASEN,
+    index=PIPELINE_FASEN.index("Oriëntatie"),
+    key="dealstage_nieuw"  
+)
+
+# Visuele weergave
+st.markdown(f"**Pipeline:** {render_pipeline(dealstage)}")
+
+
+# Documenten per fase tonen
+vereiste_fase_docs = documentvereisten_per_fase.get(dealstage, [])
+if vereiste_fase_docs:
+    st.markdown("**📄 Vereiste documenten in deze fase:**")
+    for doc in vereiste_fase_docs:
+        upload_status = "✅" if perceel.get("uploads", {}).get(doc) else "❌"
+        st.write(f"{upload_status} {doc}")
+else:
+    st.info("Geen documenten vereist in deze fase.")
+
+
 # Percelen beheer sectie
 st.subheader("✏️ Beheer percelen")
 col1, col2 = st.columns(2)
@@ -223,21 +290,37 @@ for i, perceel in enumerate(st.session_state.percelen):
 
     naam = perceel.get("locatie", f"Perceel {i+1}")
     with st.expander(f"📍 {naam}", expanded=False):
+        st.markdown(f"**🔁 Pipeline:** {render_pipeline(perceel.get('dealstage', 'Oriëntatie'), perceel.get('fase_status', {}))}")
+        st.markdown("### 📋 Voortgang per pipelinefase")
+
+        if "fase_status" not in perceel or not isinstance(perceel["fase_status"], dict):
+            perceel["fase_status"] = {}
+
+        for fase in PIPELINE_FASEN:
+            voltooid = perceel["fase_status"].get(fase, False)
+            perceel["fase_status"][fase] = st.checkbox(
+                f"✅ {fase} afgerond?", value=voltooid, key=f"fase_{i}_{fase}"
+            )
+            actiepunten = actiepunten_per_fase.get(fase, [])
+            for actie in actiepunten:
+                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🔹 _{actie}_", unsafe_allow_html=True)
+
+        # Perceelinformatie
         perceel["locatie"] = st.text_input("📍 Locatie", value=perceel.get("locatie", ""), key=f"locatie_{i}")
         perceel["lengte"] = st.number_input("📏 Lengte (m)", min_value=0, value=perceel.get("lengte", 0), key=f"lengte_{i}")
         perceel["breedte"] = st.number_input("📐 Breedte (m)", min_value=0, value=perceel.get("breedte", 0), key=f"breedte_{i}")
-        perceel["status"] = st.selectbox("📄 Status", status_opties, index=status_opties.index(perceel.get("status", "In portfolio")), key=f"status_change_{i}")
+        perceel["dealstage"] = st.selectbox("🔁 Pipelinefase", PIPELINE_FASEN, index=PIPELINE_FASEN.index(perceel.get("dealstage", "Oriëntatie")), key=f"dealstage_edit_{i}")
         perceel["eigendomstype"] = st.selectbox("📁 Eigendomsvorm", ["Customary land", "Freehold land"], index=["Customary land", "Freehold land"].index(perceel.get("eigendomstype", "Customary land")), key=f"eigendom_{i}")
-
         perceel["aankoopdatum"] = st.date_input("📅 Aankoopdatum", value=pd.to_datetime(perceel.get("aankoopdatum", date.today())), key=f"aankoopdatum_{i}")
         perceel["aankoopprijs_eur"] = st.number_input("💶 Aankoopprijs (EUR)", min_value=0.0, format="%.2f", value=perceel.get("aankoopprijs_eur", 0.0) or 0.0, key=f"aankoopprijs_eur_{i}")
         perceel["aankoopprijs"] = round(perceel["aankoopprijs_eur"] * wisselkoers) if wisselkoers else 0
 
-        if perceel["status"] == "Verkocht":
+        if perceel["dealstage"] == "Verkocht":
             perceel["verkoopdatum"] = st.date_input("📅 Verkoopdatum", value=pd.to_datetime(perceel.get("verkoopdatum", date.today())), key=f"verkoopdatum_{i}")
             perceel["verkoopprijs_eur"] = st.number_input("💶 Verkoopprijs (EUR)", min_value=0.0, format="%.2f", value=perceel.get("verkoopprijs_eur", 0.0) or 0.0, key=f"verkoopprijs_eur_{i}")
             perceel["verkoopprijs"] = round(perceel["verkoopprijs_eur"] * wisselkoers) if wisselkoers else 0
 
+        # Investeerders
         st.markdown("---")
         st.markdown("#### 👥 Investeerders")
         nieuwe_investeerders = []
@@ -258,6 +341,7 @@ for i, perceel in enumerate(st.session_state.percelen):
             })
         perceel["investeerders"] = nieuwe_investeerders
 
+        # Documenten
         st.markdown("---")
         st.markdown("#### 📎 Documenten")
         vereiste = vereiste_docs.get(perceel["eigendomstype"], [])
@@ -266,32 +350,19 @@ for i, perceel in enumerate(st.session_state.percelen):
             nieuwe_uploads[doc] = st.checkbox(f"{doc} aanwezig?", value=perceel.get("uploads", {}).get(doc, False), key=f"upload_{i}_{doc}")
         perceel["uploads"] = nieuwe_uploads
 
+        # Opslaan/verwijderen
         if st.button(f"💾 Opslaan wijzigingen", key=f"opslaan_{i}"):
             perceel["aankoopdatum"] = perceel["aankoopdatum"].strftime("%Y-%m-%d") if isinstance(perceel["aankoopdatum"], date) else perceel["aankoopdatum"]
-            if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
+            if perceel["dealstage"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
                 perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
             st.success(f"Wijzigingen aan {naam} opgeslagen.")
 
-        nieuwe_status = st.selectbox(
-            "📄 Wijzig status",
-            status_opties,
-            index=status_opties.index(perceel.get("status", "In portfolio")),
-            key=f"status_{i}"
-        )
-        if nieuwe_status != perceel["status"]:
-            perceel["status"] = nieuwe_status
-            if perceel["status"] == "Verkocht" and isinstance(perceel.get("verkoopdatum"), date):
-                perceel["verkoopdatum"] = perceel["verkoopdatum"].strftime("%Y-%m-%d")
-            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
-            st.success(f"Status van {naam} gewijzigd naar: {nieuwe_status}")
-
-        st.markdown(f"**Eigendom:** {perceel.get('eigendomstype', '-')}")
-        st.markdown(f"**Investeerders:** {perceel.get('investeerders', '-')}")
         if st.button(f"🗑️ Verwijder perceel", key=f"verwijder_{i}"):
             st.session_state["percelen"].pop(i)
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
             st.session_state["rerun_trigger"] = True
+
 
 # Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
@@ -342,10 +413,10 @@ if toevoegen:
     else:
         perceel = {
             "locatie": locatie,
+	    "dealstage": dealstage,
             "investeerders": investeerders,
             "lengte": lengte,
             "breedte": breedte,
-            "status": status,
             "eigendomstype": eigendomstype,
             "polygon": polygon_coords,
             "uploads": uploads,
