@@ -213,7 +213,7 @@ if "percelen" not in st.session_state or not st.session_state["percelen"]:
 percelen = st.session_state["percelen"]
 df = pd.DataFrame(percelen)
 df.columns = df.columns.str.lower()
-verkochte_df = df[df["status"].str.lower() == "verkocht"]
+verkochte_df = df[df["dealstage"].str.lower() == "verkocht"]
 
 resultaten = []
 
