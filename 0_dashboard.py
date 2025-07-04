@@ -219,7 +219,7 @@ resultaten = []
 
 if verkochte_df.empty:
     st.info("Er zijn nog geen verkochte percelen. Hieronder volgt een prognose van actieve percelen.")
-    portfolio_df = df[df["status"].str.lower().isin(["in portfolio", "in planning"])]
+    portfolio_df = df[df["dealstage"].str.lower().isin(["in portfolio", "in planning"])]
     if not portfolio_df.empty:
         groei_pct = st.number_input("Verwachte jaarlijkse waardestijging (%)", min_value=0.0, max_value=100.0, value=5.0)
         horizon = st.slider("Prognoseperiode (jaren)", 1, 15, 5)
