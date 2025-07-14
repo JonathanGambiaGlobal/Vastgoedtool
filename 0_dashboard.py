@@ -1,9 +1,14 @@
 import streamlit as st
+
+st.image("QG.png", width=180)
+
 import pandas as pd
 import numpy as np
 from datetime import date, timedelta
 import requests
 import pydeck as pdk
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from utils import (
     geocode,
     beoordeel_perceel_modulair,
@@ -11,6 +16,8 @@ from utils import (
     get_exchange_rate_volatility,
     hoofdsteden_df
 )
+from auth import login_check
+login_check()
 
 # --- Percelen laden (vervang indien nodig door load_percelen_from_json) ---
 if "percelen" not in st.session_state:
@@ -36,11 +43,77 @@ with col2:
 
 st.markdown("---")
 
-import streamlit as st
-import pandas as pd
-from utils import get_exchange_rate_eur_to_gmd
-from datetime import datetime
+# 📊 DASHBOARD KERNCIJFERS
+st.markdown("## 📊 Kerngegevens vastgoedportfolio")
 
+percelen = st.session_state["percelen"]
+aantal_percelen = len(percelen)
+totaal_m2 = sum(
+    p.get("lengte", 0) * p.get("breedte", 0)
+    for p in percelen if isinstance(p, dict)
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric("📍 Aantal percelen", aantal_percelen)
+
+with col2:
+    st.metric("📐 Totale oppervlakte", f"{totaal_m2:,.0f} m²")
+
+
+
+st.markdown("## 📅 Komende betalingen & opgebouwde rente")
+
+betalingen = []
+vandaag = date.today()
+
+for perceel in percelen:
+    locatie = perceel.get("locatie", "Onbekend")
+    aankoopdatum_str = perceel.get("aankoopdatum", "")
+    try:
+        aankoopdatum = datetime.strptime(aankoopdatum_str, "%Y-%m-%d").date()
+    except:
+        aankoopdatum = vandaag
+
+    for inv in perceel.get("investeerders", []):
+        naam = inv.get("naam", "Investeerder")
+        bedrag = inv.get("bedrag_eur", 0.0)
+        rente = inv.get("rente", 0.0)
+        rentetype = inv.get("rentetype", "bij verkoop")
+
+        if rente > 0 and rentetype in ["maandelijks", "jaarlijks"]:
+            if rentetype == "maandelijks":
+                maanden = (vandaag.year - aankoopdatum.year) * 12 + (vandaag.month - aankoopdatum.month)
+                opgebouwde_rente = bedrag * (rente / 12) * maanden
+                volgende_betaling = aankoopdatum + relativedelta(months=+maanden + 1)
+                volgende_bedrag = bedrag * rente / 12
+            elif rentetype == "jaarlijks":
+                jaren = max(vandaag.year - aankoopdatum.year, 0)
+                opgebouwde_rente = bedrag * rente * jaren
+                volgende_betaling = aankoopdatum + relativedelta(years=+jaren + 1)
+                volgende_bedrag = bedrag * rente
+            else:
+                opgebouwde_rente = 0
+                volgende_betaling = "n.v.t."
+                volgende_bedrag = 0
+
+            betalingen.append({
+                "Perceel": locatie,
+                "Investeerder": naam,
+                "Rentetype": rentetype,
+                "Startdatum": aankoopdatum.strftime("%d-%m-%Y"),
+                "Volgende betaling": volgende_betaling.strftime("%d-%m-%Y") if isinstance(volgende_betaling, date) else "n.v.t.",
+                "Bedrag volgende betaling (€)": round(volgende_bedrag, 2),
+                "Opgebouwde rente tot nu (€)": round(opgebouwde_rente, 2)
+            })
+
+if betalingen:
+    df_betalingen = pd.DataFrame(betalingen)
+    df_betalingen.reset_index(drop=True, inplace=True)
+    st.dataframe(df_betalingen, use_container_width=True)
+else:
+    st.info("Geen rentebetalingen gepland.")
 
 def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: int, exchange_rate: float) -> dict:
     def safe_float(value):
@@ -262,5 +335,3 @@ if resultaten:
                              f"({inv.get('winstdeling_pct', 0)*100:.0f}%), totaal: GMD {totaal:,.2f} "
                              f"(EUR {totaal_eur:,.2f}), netto winst: EUR {winst_eur:,.2f} "
                              f"({rendement_pct:.1f}%)")
-
-
