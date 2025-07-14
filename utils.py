@@ -160,6 +160,8 @@ def save_percelen_as_json(percelen: list[dict]) -> None:
         json_str = json.dumps(perceel, ensure_ascii=False, default=str)
         ws.append_row([json_str])
 
+
+@st.cache_data(ttl=60)
 def load_percelen_from_json() -> list[dict]:
     ws = get_worksheet()
     rows = ws.get_all_values()
