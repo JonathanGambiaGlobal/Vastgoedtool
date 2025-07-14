@@ -338,7 +338,11 @@ for perceel in st.session_state.percelen:
     tooltip = perceel.get("locatie", "Onbekend")
 
     # 🔔 Mooiere popup met nette opsomming
-    investeerders = ", ".join(i.get('naam') for i in perceel.get('investeerders', [])) or "Geen"
+    investeerders = ", ".join(
+    i.get('naam') if isinstance(i, dict) else str(i)
+    for i in perceel.get('investeerders', [])
+) or "Geen"
+
     documenten = ", ".join(doc for doc, aanwezig in perceel.get('uploads', {}).items() if aanwezig) or "Geen"
 
     popup_html = f"""
@@ -437,10 +441,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
         # 📋 Documenten checklist
         st.markdown("#### 📋 Documenten")
-
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
-
-        # ➕ Checkboxes renderen
         nieuwe_uploads = {}
         for doc in vereiste_docs:
             nieuwe_uploads[doc] = st.checkbox(
@@ -448,16 +449,12 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 value=perceel.get("uploads", {}).get(doc, False),
                 key=f"upload_{i}_{doc}"
             )
-
         perceel["uploads"] = nieuwe_uploads
 
         # 🔹 Huidige fase opnieuw berekenen na wijzigingen
         huidige_fase = bepaal_hoogste_fase(perceel)
         st.markdown(f"📌 Huidige fase (live berekend): {huidige_fase}")
 
-
-
-    
         if st.button(f"💾 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_context_{i}"):
             save_state()
             perceel["dealstage"] = bepaal_hoogste_fase(perceel)
@@ -465,25 +462,28 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             st.cache_data.clear()
             st.success(f"Wijzigingen aan {perceel.get('locatie')} opgeslagen.")
 
-
-        # 🎯 Toon duidelijk welke fase automatisch is vastgesteld
+        # 🎯 Toon automatisch bepaalde fase
         st.markdown(f"**📌 Automatisch bepaalde fase: {perceel['dealstage']}**")
-
 
         # 👥 Investeerdersstructuur
         st.markdown("#### 👥 Investeerders")
         nieuwe_investeerders = []
         for j, inv in enumerate(perceel.get("investeerders", [])):
             col1, col2 = st.columns(2)
+
+            naam_waarde = inv.get("naam", "") if isinstance(inv, dict) else str(inv)
+            bedrag_waarde = inv.get("bedrag_eur", 0.0) if isinstance(inv, dict) else 0.0
+
             naam = col1.text_input(
-                f"Naam {j+1}", value=inv.get("naam", ""), key=f"inv_naam_edit_{i}_{j}"
+                f"Naam {j+1}", value=naam_waarde, key=f"inv_naam_edit_{i}_{j}"
             )
             bedrag_eur = col2.number_input(
                 f"Bedrag {j+1} (EUR)",
                 min_value=0.0, format="%.2f",
-                value=inv.get("bedrag_eur", 0.0) or 0.0,
+                value=bedrag_waarde or 0.0,
                 key=f"inv_bedrag_edit_{i}_{j}"
             )
+
             nieuwe_investeerders.append({
                 "naam": naam,
                 "bedrag": round(bedrag_eur * wisselkoers) if wisselkoers else 0,
@@ -492,7 +492,9 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 "winstdeling": 0.0,
                 "rentetype": "bij verkoop"
             })
+
         perceel["investeerders"] = nieuwe_investeerders
+
 
         # 💾 Opslaan / verwijderen
         if is_admin:
