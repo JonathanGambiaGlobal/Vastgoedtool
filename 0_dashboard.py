@@ -19,9 +19,11 @@ from utils import (
 from auth import login_check
 login_check()
 
-# --- Percelen laden (vervang indien nodig door load_percelen_from_json) ---
-if "percelen" not in st.session_state:
-    st.session_state["percelen"] = []
+from utils import load_percelen_from_json
+
+if "percelen" not in st.session_state or not st.session_state["percelen"]:
+    st.session_state["percelen"] = load_percelen_from_json()
+
 
 # --- Titel & Koersen ---
 st.title("Vastgoeddashboard – Gambia")
@@ -154,53 +156,42 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     totaal_rente = 0
     investeerder_resultaten = []
 
-    for inv in investeerders:
+for inv in investeerders:
+    if isinstance(inv, dict):
         bedrag = safe_float(inv.get("bedrag"))
         rente = safe_float(inv.get("rente"))
         winstdeling_pct = safe_float(inv.get("winstdeling"))
         rentetype = inv.get("rentetype", "maandelijks").lower()
+        naam = inv.get("naam", "Investeerder")
+    else:
+        bedrag = 0.0
+        rente = 0.0
+        winstdeling_pct = 0.0
+        rentetype = "bij verkoop"
+        naam = str(inv)
 
-        if rentetype == "maandelijks":
-            rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
-        elif rentetype == "jaarlijks":
-            rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
-        elif rentetype == "bij verkoop":
-            rente_opbouw = bedrag * rente
-        else:
-            rente_opbouw = 0
+    if rentetype == "maandelijks":
+        rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
+    elif rentetype == "jaarlijks":
+        rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
+    elif rentetype == "bij verkoop":
+        rente_opbouw = bedrag * rente
+    else:
+        rente_opbouw = 0
 
-        totaal_inleg += bedrag
-        totaal_rente += rente_opbouw
+    totaal_inleg += bedrag
+    totaal_rente += rente_opbouw
 
-        investeerder_resultaten.append({
-            "naam": inv.get("naam"),
-            "inleg": round(bedrag, 2),
-            "rente": round(rente_opbouw, 2),
-            "kapitaalkosten": round(bedrag + rente_opbouw, 2),
-            "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
-            "rentetype": rentetype,
-            "winstdeling_pct": winstdeling_pct
-        })
+    investeerder_resultaten.append({
+        "naam": naam,
+        "inleg": round(bedrag, 2),
+        "rente": round(rente_opbouw, 2),
+        "kapitaalkosten": round(bedrag + rente_opbouw, 2),
+        "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
+        "rentetype": rentetype,
+        "winstdeling_pct": winstdeling_pct
+    })
 
-    netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
-    waardestijging = max(0, verkoopwaarde - aankoopprijs)
-
-    for result in investeerder_resultaten:
-        winstdeling_pct = result.get("winstdeling_pct", 0)
-        winst_aandeel = waardestijging * winstdeling_pct
-        result["winstdeling"] = round(winst_aandeel, 2)
-        result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
-
-    return {
-        "locatie": perceel.get("locatie"),
-        "verkoopwaarde": round(verkoopwaarde, 2),
-        "verkoopwaarde_eur": round(verkoopwaarde / exchange_rate, 2) if exchange_rate else None,
-        "totaal_inleg": round(totaal_inleg, 2),
-        "totaal_rente": round(totaal_rente, 2),
-        "netto_winst": round(netto_winst, 2),
-        "netto_winst_eur": round(netto_winst / exchange_rate, 2) if exchange_rate else None,
-        "investeerders": investeerder_resultaten
-    }
 
 def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
     def safe_float(value):
@@ -225,37 +216,46 @@ def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
     totaal_rente = 0
     investeerder_resultaten = []
 
-    for inv in investeerders:
+for inv in investeerders:
+    if isinstance(inv, dict):
         bedrag = safe_float(inv.get("bedrag"))
         rente = safe_float(inv.get("rente"))
         winstdeling_pct = safe_float(inv.get("winstdeling"))
         rentetype = inv.get("rentetype", "maandelijks").lower()
+        naam = inv.get("naam", "Investeerder")
+    else:
+        bedrag = 0.0
+        rente = 0.0
+        winstdeling_pct = 0.0
+        rentetype = "bij verkoop"
+        naam = str(inv)
 
-        if rentetype == "maandelijks":
-            rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
-        elif rentetype == "jaarlijks":
-            rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
-        elif rentetype == "bij verkoop":
-            rente_opbouw = bedrag * rente
-        else:
-            rente_opbouw = 0
+    if rentetype == "maandelijks":
+        rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
+    elif rentetype == "jaarlijks":
+        rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
+    elif rentetype == "bij verkoop":
+        rente_opbouw = bedrag * rente
+    else:
+        rente_opbouw = 0
 
-        totaal_inleg += bedrag
-        totaal_rente += rente_opbouw
+    totaal_inleg += bedrag
+    totaal_rente += rente_opbouw
 
-        investeerder_resultaten.append({
-            "naam": inv.get("naam"),
-            "inleg": round(bedrag, 2),
-            "rente": round(rente_opbouw, 2),
-            "kapitaalkosten": round(bedrag + rente_opbouw, 2),
-            "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
-            "rentetype": rentetype,
-            "winstdeling_pct": winstdeling_pct
-        })
+    investeerder_resultaten.append({
+        "naam": naam,
+        "inleg": round(bedrag, 2),
+        "rente": round(rente_opbouw, 2),
+        "kapitaalkosten": round(bedrag + rente_opbouw, 2),
+        "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
+        "rentetype": rentetype,
+        "winstdeling_pct": winstdeling_pct
+    })
 
     netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
     waardestijging = max(0, verkoopwaarde - aankoopprijs)
 
+def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: int, exchange_rate: float) -> dict:
     for result in investeerder_resultaten:
         winstdeling_pct = result.get("winstdeling_pct", 0)
         winst_aandeel = waardestijging * winstdeling_pct
