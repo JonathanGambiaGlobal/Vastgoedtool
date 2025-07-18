@@ -19,6 +19,49 @@ from utils import render_pipeline
 from auth import login_check
 login_check()
 
+def migrate_percelen():
+    transformer = Transformer.from_crs("epsg:32628", "epsg:4326", always_xy=True)
+    changed = False
+
+    for perceel in st.session_state.get("percelen", []):
+        investeerders = perceel.get("investeerders")
+
+        # 🧹 Fix investeerders: string óf foutieve lijst van losse letters → Eigen beheer
+        if isinstance(investeerders, str) or (
+            isinstance(investeerders, list) and
+            len(investeerders) > 1 and
+            all(isinstance(i.get("naam"), str) and len(i.get("naam")) == 1 for i in investeerders)
+        ):
+            perceel["investeerders"] = [{
+                "naam": "Eigen beheer",
+                "bedrag": 0,
+                "bedrag_eur": 0,
+                "rente": 0.0,
+                "winstdeling": 1.0,
+                "rentetype": "bij verkoop"
+            }]
+            changed = True
+
+        # 🧹 Fix polygon: detecteer én corrigeer alle polygonen met abs(lat) > 90 of abs(lon) > 180
+        polygon = perceel.get("polygon")
+        if polygon and isinstance(polygon, list):
+            if any(abs(p[0]) > 90 or abs(p[1]) > 180 for p in polygon if isinstance(p, list) and len(p) == 2):
+                polygon_converted = []
+                for pt in polygon:
+                    if isinstance(pt, list) and len(pt) == 2:
+                        lon_conv, lat_conv = transformer.transform(pt[0], pt[1])
+                        polygon_converted.append([lat_conv, lon_conv])
+                perceel["polygon"] = polygon_converted
+                changed = True
+
+    if changed:
+        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+        st.cache_data.clear()
+        st.success("✅ Migratie uitgevoerd: oude records gecorrigeerd en opgeslagen.")
+        st.session_state["skip_load"] = True
+        st.rerun()
+
+
 is_admin = st.session_state.get("rol") == "admin"
 
 if "history" not in st.session_state:
@@ -144,7 +187,7 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-st.title("Interactieve Kadasterkaart")
+st.title("Percelen Beheer")
 
 # Laden percelen en validatie
 if "percelen" not in st.session_state or st.session_state.get("skip_load") != True:
@@ -339,11 +382,13 @@ for perceel in st.session_state.percelen:
 
     # 🔔 Mooiere popup met nette opsomming
     investeerders = ", ".join(
-    i.get('naam') if isinstance(i, dict) else str(i)
-    for i in perceel.get('investeerders', [])
-) or "Geen"
+        i.get('naam') if isinstance(i, dict) else str(i)
+        for i in perceel.get('investeerders', [])
+    ) or "Geen"
 
-    documenten = ", ".join(doc for doc, aanwezig in perceel.get('uploads', {}).items() if aanwezig) or "Geen"
+    documenten = ", ".join(
+        doc for doc, aanwezig in perceel.get('uploads', {}).items() if aanwezig
+    ) or "Geen"
 
     popup_html = f"""
     <b>📍 Locatie:</b> {perceel.get('locatie', 'Onbekend')}<br>
@@ -357,23 +402,31 @@ for perceel in st.session_state.percelen:
     """
 
     if polygon and isinstance(polygon, list):
-        if len(polygon) >= 3:
+        polygon_converted = []
+        for point in polygon:
+            if isinstance(point, list) and len(point) == 2:
+                lat, lon = point
+                polygon_converted.append([lat, lon])
+
+        # 🔎 DEBUG output vóór tekenen
+        st.write(f"🔎 Polygon DEBUG — {tooltip}: {polygon_converted}")
+
+        if len(polygon_converted) >= 3:
             folium.Polygon(
-                locations=polygon,
+                locations=polygon_converted,
                 color="blue",
                 fill=True,
                 fill_opacity=0.5,
                 tooltip=tooltip,
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(m)
-        elif len(polygon) == 1:
+        elif len(polygon_converted) == 1:
             folium.Marker(
-                location=polygon[0],
+                location=polygon_converted[0],
                 tooltip=tooltip,
                 popup=folium.Popup(popup_html, max_width=300),
                 icon=folium.Icon(color="blue", icon="info-sign")
             ).add_to(m)
-
 
 with st.container():
     output = st_folium(m, width=1000, height=500)
@@ -549,6 +602,10 @@ if output := st.session_state.get("output", None):
             polygon_coords = [[c[1], c[0]] for c in coords]
 
 if is_admin:
+    if st.sidebar.button("🧹 Migratie uitvoeren (eenmalig)"):
+        migrate_percelen() 
+
+if is_admin:
     toevoegen = st.sidebar.button("➕ Voeg perceel toe")
 else:
     st.sidebar.info("🔒 Alleen admins kunnen percelen toevoegen.")
@@ -594,4 +651,5 @@ if is_admin and toevoegen:
         st.session_state.percelen.append(perceel)
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.sidebar.success(f"Perceel '{locatie}' toegevoegd en opgeslagen.")
+
 
