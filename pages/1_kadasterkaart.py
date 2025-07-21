@@ -20,7 +20,7 @@ from auth import login_check
 login_check()
 
 def migrate_percelen():
-    transformer = Transformer.from_crs("epsg:32628", "epsg:4326", always_xy=True)
+    transformer = Transformer.from_crs("epsg:32629", "epsg:4326", always_xy=True)
     changed = False
 
     for perceel in st.session_state.get("percelen", []):
@@ -611,7 +611,6 @@ else:
     st.sidebar.info("🔒 Alleen admins kunnen percelen toevoegen.")
     toevoegen = False  # Zet toevoegen uit voor niet-admins
 
-
 if is_admin and toevoegen:
     save_state()  
     # Validatie
@@ -628,6 +627,17 @@ if is_admin and toevoegen:
         dealstage = "Verkoop" if snel_verkocht else bepaal_hoogste_fase({
             "uploads": uploads
         })
+
+        # 🛡️ Safeguard: fix investeerders direct bij invoer
+        if isinstance(investeerders, str):
+            investeerders = [{
+                "naam": investeerders,
+                "bedrag": 0,
+                "bedrag_eur": 0,
+                "rente": 0.0,
+                "winstdeling": 0.0,
+                "rentetype": "bij verkoop"
+            }]
 
         perceel = {
             "locatie": locatie,
@@ -652,4 +662,7 @@ if is_admin and toevoegen:
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.sidebar.success(f"Perceel '{locatie}' toegevoegd en opgeslagen.")
 
+        st.session_state["skip_load"] = False
+        st.cache_data.clear()
+        st.rerun()
 
