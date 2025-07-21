@@ -367,7 +367,7 @@ for doc in docs_sidebar:
 
 
 # Folium map initialisatie met polygon tool
-start_coords = [13.3085, -16.6800]
+start_coords = [13.29583, -16.74694]
 m = folium.Map(location=start_coords, zoom_start=18, tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid")
 Draw(export=False).add_to(m)
 
