@@ -358,13 +358,13 @@ else:
     }, "Aankoop")
 
 uploads = {}
+uploads_urls = {}
 for doc in docs_sidebar:
     col1, col2 = st.sidebar.columns([1, 2])
     with col1:
         uploads[doc] = st.checkbox(f"{doc} aanwezig?", value=False)
     with col2:
-        st.file_uploader(f"Upload {doc}", key=doc)
-
+        uploads_urls[doc] = st.text_input(f"Link naar {doc}", key=f"url_{doc}")
 
 # Folium map initialisatie met polygon tool
 start_coords = [13.29583, -16.74694]
@@ -372,6 +372,9 @@ m = folium.Map(location=start_coords, zoom_start=18, tiles="https://mt1.google.c
 Draw(export=False).add_to(m)
 
 # Toon bestaande percelen, met check voor correcte dict structuur
+for perceel in st.session_state.percelen:
+    perceel.setdefault("uploads_urls", {})
+
 for perceel in st.session_state.percelen:
     if not isinstance(perceel, dict):
         st.warning(f"Percel is geen dict maar {type(perceel)}, wordt overgeslagen: {perceel}")
@@ -386,9 +389,16 @@ for perceel in st.session_state.percelen:
         for i in perceel.get('investeerders', [])
     ) or "Geen"
 
-    documenten = ", ".join(
-        doc for doc, aanwezig in perceel.get('uploads', {}).items() if aanwezig
-    ) or "Geen"
+    # 📄 Documenten met optioneel klikbare link
+    documenten_links = []
+    for doc, aanwezig in perceel.get("uploads", {}).items():
+        if aanwezig:
+            url = perceel.get("uploads_urls", {}).get(doc, "")
+            if url:
+                documenten_links.append(f'<a href="{url}" target="_blank">{doc}</a>')
+            else:
+                documenten_links.append(doc)
+    documenten = ", ".join(documenten_links) or "Geen"
 
     popup_html = f"""
     <b>📍 Locatie:</b> {perceel.get('locatie', 'Onbekend')}<br>
@@ -457,6 +467,9 @@ for i, perceel in enumerate(st.session_state["percelen"]):
     if "uploads" not in perceel or not isinstance(perceel["uploads"], dict):
         perceel["uploads"] = {}
 
+    if "uploads_urls" not in perceel or not isinstance(perceel["uploads_urls"], dict):
+        perceel["uploads_urls"] = {}
+
     huidige_fase = bepaal_hoogste_fase(perceel) if perceel["uploads"] else "Aankoop"
 
     with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=False):
@@ -488,13 +501,20 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
         nieuwe_uploads = {}
+        nieuwe_uploads_urls = {}
         for doc in vereiste_docs:
             nieuwe_uploads[doc] = st.checkbox(
                 f"{doc} aanwezig?",
                 value=perceel.get("uploads", {}).get(doc, False),
                 key=f"upload_{i}_{doc}"
             )
+            nieuwe_uploads_urls[doc] = st.text_input(
+                f"Link naar {doc}",
+                value=perceel.get("uploads_urls", {}).get(doc, ""),
+                key=f"upload_url_{i}_{doc}"
+            )
         perceel["uploads"] = nieuwe_uploads
+        perceel["uploads_urls"] = nieuwe_uploads_urls
 
         huidige_fase = bepaal_hoogste_fase(perceel)
         st.markdown(f"📌 Huidige fase (live berekend): {huidige_fase}")
@@ -636,6 +656,7 @@ if is_admin and toevoegen:
             "eigendomstype": eigendomstype,
             "polygon": polygon_coords,
             "uploads": uploads,
+            "uploads_urls": uploads_urls,
             "aankoopdatum": aankoopdatum.strftime("%Y-%m-%d"),
             "verkoopdatum": verkoopdatum.strftime("%Y-%m-%d") if isinstance(verkoopdatum, date) else verkoopdatum,
             "aankoopprijs": aankoopprijs,
@@ -652,5 +673,3 @@ if is_admin and toevoegen:
         st.session_state["skip_load"] = False
         st.cache_data.clear()
         st.rerun()
-
-
