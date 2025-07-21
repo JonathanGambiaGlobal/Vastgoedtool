@@ -454,19 +454,14 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         st.warning(f"Percel op index {i} is ongeldig en wordt overgeslagen.")
         continue
 
-    # 🔒 Extra bescherming: zorg dat 'uploads' altijd dict is
     if "uploads" not in perceel or not isinstance(perceel["uploads"], dict):
         perceel["uploads"] = {}
 
-    # 🔹 Bepaal huidige fase veilig
     huidige_fase = bepaal_hoogste_fase(perceel) if perceel["uploads"] else "Aankoop"
 
     with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=False):
-
-        # 📌 Locatie (disabled)
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
-        # ➗ Wordt gesplitst (alleen bij Verkoop fase)
         if huidige_fase == "Verkoop":
             perceel["wordt_gesplitst"] = st.checkbox(
                 "Wordt perceel gesplitst?",
@@ -476,7 +471,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         else:
             perceel["wordt_gesplitst"] = False
 
-        # 📏 Lengte / Breedte
         perceel["lengte"] = st.number_input(
             "📏 Lengte (m)", min_value=0, value=perceel.get("lengte", 0), key=f"edit_lengte_{i}"
         )
@@ -484,7 +478,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             "📐 Breedte (m)", min_value=0, value=perceel.get("breedte", 0), key=f"edit_breedte_{i}"
         )
 
-        # 🏷️ Eigendomstype
         perceel["eigendomstype"] = st.selectbox(
             "Eigendomsvorm",
             ["Customary land", "Freehold land"],
@@ -492,7 +485,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             key=f"eigendom_{i}"
         )
 
-        # 📋 Documenten checklist
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
         nieuwe_uploads = {}
@@ -504,7 +496,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             )
         perceel["uploads"] = nieuwe_uploads
 
-        # 🔹 Huidige fase opnieuw berekenen na wijzigingen
         huidige_fase = bepaal_hoogste_fase(perceel)
         st.markdown(f"📌 Huidige fase (live berekend): {huidige_fase}")
 
@@ -515,10 +506,8 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             st.cache_data.clear()
             st.success(f"Wijzigingen aan {perceel.get('locatie')} opgeslagen.")
 
-        # 🎯 Toon automatisch bepaalde fase
         st.markdown(f"**📌 Automatisch bepaalde fase: {perceel['dealstage']}**")
 
-        # 👥 Investeerdersstructuur
         st.markdown("#### 👥 Investeerders")
         nieuwe_investeerders = []
         for j, inv in enumerate(perceel.get("investeerders", [])):
@@ -526,30 +515,27 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
             naam_waarde = inv.get("naam", "") if isinstance(inv, dict) else str(inv)
             bedrag_waarde = inv.get("bedrag_eur", 0.0) if isinstance(inv, dict) else 0.0
+            rente_waarde = inv.get("rente", 0.0) * 100 if isinstance(inv, dict) else 0.0
+            winst_waarde = inv.get("winstdeling", 0.0) * 100 if isinstance(inv, dict) else 0.0
+            rentetype_waarde = inv.get("rentetype", "bij verkoop") if isinstance(inv, dict) else "bij verkoop"
 
-            naam = col1.text_input(
-                f"Naam {j+1}", value=naam_waarde, key=f"inv_naam_edit_{i}_{j}"
-            )
-            bedrag_eur = col2.number_input(
-                f"Bedrag {j+1} (EUR)",
-                min_value=0.0, format="%.2f",
-                value=bedrag_waarde or 0.0,
-                key=f"inv_bedrag_edit_{i}_{j}"
-            )
+            naam = col1.text_input(f"Naam {j+1}", value=naam_waarde, key=f"inv_naam_edit_{i}_{j}")
+            bedrag_eur = col2.number_input(f"Bedrag {j+1} (EUR)", min_value=0.0, format="%.2f", value=bedrag_waarde, key=f"inv_bedrag_edit_{i}_{j}")
+            rente = st.number_input(f"Rente {j+1} (%)", min_value=0.0, max_value=100.0, step=0.1, value=rente_waarde, key=f"inv_rente_edit_{i}_{j}") / 100
+            winstdeling = st.number_input(f"Winstdeling {j+1} (%)", min_value=0.0, max_value=100.0, step=1.0, value=winst_waarde, key=f"inv_winst_edit_{i}_{j}") / 100
+            rentetype = st.selectbox(f"Rentevorm {j+1}", ["maandelijks", "jaarlijks", "bij verkoop"], index=["maandelijks", "jaarlijks", "bij verkoop"].index(rentetype_waarde), key=f"inv_type_edit_{i}_{j}")
 
             nieuwe_investeerders.append({
                 "naam": naam,
                 "bedrag": round(bedrag_eur * wisselkoers) if wisselkoers else 0,
                 "bedrag_eur": bedrag_eur,
-                "rente": 0.0,
-                "winstdeling": 0.0,
-                "rentetype": "bij verkoop"
+                "rente": rente,
+                "winstdeling": winstdeling,
+                "rentetype": rentetype
             })
 
         perceel["investeerders"] = nieuwe_investeerders
 
-
-        # 💾 Opslaan / verwijderen
         if is_admin:
             if st.button(f"💾 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_bewerken_{i}"):
                 save_state()
@@ -565,6 +551,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔒 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
+
 
   
 # Coördinaten invoer (UTM of Lat/Lon)
@@ -665,4 +652,5 @@ if is_admin and toevoegen:
         st.session_state["skip_load"] = False
         st.cache_data.clear()
         st.rerun()
+
 
