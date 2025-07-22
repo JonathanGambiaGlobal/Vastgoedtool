@@ -418,9 +418,6 @@ for perceel in st.session_state.percelen:
                 lat, lon = point
                 polygon_converted.append([lat, lon])
 
-        # 🔎 DEBUG output vóór tekenen
-        st.write(f"🔎 Polygon DEBUG — {tooltip}: {polygon_converted}")
-
         if len(polygon_converted) >= 3:
             folium.Polygon(
                 locations=polygon_converted,
