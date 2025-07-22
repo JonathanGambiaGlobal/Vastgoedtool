@@ -534,16 +534,43 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             col1, col2 = st.columns(2)
 
             naam_waarde = inv.get("naam", "") if isinstance(inv, dict) else str(inv)
-            bedrag_waarde = inv.get("bedrag_eur", 0.0) if isinstance(inv, dict) else 0.0
+
+            # ✅ Veilige bedrag_waarde cast
+            try:
+                bedrag_waarde = float(inv.get("bedrag_eur", 0.0)) if isinstance(inv, dict) else 0.0
+            except (ValueError, TypeError):
+                bedrag_waarde = 0.0
+
             rente_waarde = inv.get("rente", 0.0) * 100 if isinstance(inv, dict) else 0.0
             winst_waarde = inv.get("winstdeling", 0.0) * 100 if isinstance(inv, dict) else 0.0
             rentetype_waarde = inv.get("rentetype", "bij verkoop") if isinstance(inv, dict) else "bij verkoop"
 
             naam = col1.text_input(f"Naam {j+1}", value=naam_waarde, key=f"inv_naam_edit_{i}_{j}")
-            bedrag_eur = col2.number_input(f"Bedrag {j+1} (EUR)", min_value=0.0, format="%.2f", value=bedrag_waarde, key=f"inv_bedrag_edit_{i}_{j}")
-            rente = st.number_input(f"Rente {j+1} (%)", min_value=0.0, max_value=100.0, step=0.1, value=rente_waarde, key=f"inv_rente_edit_{i}_{j}") / 100
-            winstdeling = st.number_input(f"Winstdeling {j+1} (%)", min_value=0.0, max_value=100.0, step=1.0, value=winst_waarde, key=f"inv_winst_edit_{i}_{j}") / 100
-            rentetype = st.selectbox(f"Rentevorm {j+1}", ["maandelijks", "jaarlijks", "bij verkoop"], index=["maandelijks", "jaarlijks", "bij verkoop"].index(rentetype_waarde), key=f"inv_type_edit_{i}_{j}")
+            bedrag_eur = col2.number_input(
+                f"Bedrag {j+1} (EUR)",
+                min_value=0.0,
+                format="%.2f",
+                value=bedrag_waarde,
+                key=f"inv_bedrag_edit_{i}_{j}"
+            )
+            rente = st.number_input(
+                f"Rente {j+1} (%)",
+                min_value=0.0, max_value=100.0, step=0.1,
+                value=rente_waarde,
+                key=f"inv_rente_edit_{i}_{j}"
+            ) / 100
+            winstdeling = st.number_input(
+                f"Winstdeling {j+1} (%)",
+                min_value=0.0, max_value=100.0, step=1.0,
+                value=winst_waarde,
+                key=f"inv_winst_edit_{i}_{j}"
+            ) / 100
+            rentetype = st.selectbox(
+                f"Rentevorm {j+1}",
+                ["maandelijks", "jaarlijks", "bij verkoop"],
+                index=["maandelijks", "jaarlijks", "bij verkoop"].index(rentetype_waarde),
+                key=f"inv_type_edit_{i}_{j}"
+            )
 
             nieuwe_investeerders.append({
                 "naam": naam,
@@ -571,7 +598,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔒 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
-
 
   
 # Coördinaten invoer (UTM of Lat/Lon)
