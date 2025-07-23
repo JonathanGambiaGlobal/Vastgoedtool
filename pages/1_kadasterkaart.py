@@ -187,7 +187,7 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-st.title("Percelen Beheer")
+st.title("Percelenbeheer")
 
 # Laden percelen en validatie
 if "percelen" not in st.session_state or st.session_state.get("skip_load") != True:
@@ -366,10 +366,39 @@ for doc in docs_sidebar:
     with col2:
         uploads_urls[doc] = st.text_input(f"Link naar {doc}", key=f"url_{doc}")
 
-# Folium map initialisatie met polygon tool
-start_coords = [13.29583, -16.74694]
-m = folium.Map(location=start_coords, zoom_start=18, tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Hybrid")
+# 📍 Verzamel alle polygon-coördinaten
+alle_coords = []
+for perceel in st.session_state.get("percelen", []):
+    polygon = perceel.get("polygon", [])
+    if polygon and isinstance(polygon, list):
+        for point in polygon:
+            if isinstance(point, list) and len(point) == 2:
+                alle_coords.append(point)
+
+# 📌 Bepaal kaart-instelling op basis van percelen
+if alle_coords:
+    min_lat = min(p[0] for p in alle_coords)
+    max_lat = max(p[0] for p in alle_coords)
+    min_lon = min(p[1] for p in alle_coords)
+    max_lon = max(p[1] for p in alle_coords)
+    bounds = [[min_lat, min_lon], [max_lat, max_lon]]
+    m = folium.Map(
+        tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attr="Google Hybrid"
+    )
+    m.fit_bounds(bounds)
+else:
+    # Fallback locatie als er nog geen polygonen zijn
+    m = folium.Map(
+        location=[13.29583, -16.74694],
+        zoom_start=18,
+        tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attr="Google Hybrid"
+    )
+
+# ➕ Teken-tool toevoegen
 Draw(export=False).add_to(m)
+
 
 # Toon bestaande percelen, met check voor correcte dict structuur
 for perceel in st.session_state.percelen:
@@ -417,6 +446,7 @@ for perceel in st.session_state.percelen:
             if isinstance(point, list) and len(point) == 2:
                 lat, lon = point
                 polygon_converted.append([lat, lon])
+
 
         if len(polygon_converted) >= 3:
             folium.Polygon(
