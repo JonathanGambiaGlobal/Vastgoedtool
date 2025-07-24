@@ -526,6 +526,11 @@ for i, perceel in enumerate(st.session_state["percelen"]):
     with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=is_active):
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
+        # 🔍 Zoom-knop
+        if st.button(f"🔍 Zoom in op {perceel.get('locatie')}", key=f"zoom_knop_{i}"):
+            st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
+            st.rerun()
+
         if huidige_fase == "Verkoop":
             perceel["wordt_gesplitst"] = st.checkbox(
                 "Wordt perceel gesplitst?",
@@ -640,7 +645,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.cache_data.clear()
                 st.success(f"Wijzigingen aan {perceel.get('locatie')} opgeslagen.")
 
-            if st.button(f"🗑️ Verwijder perceel", key=f"verwijder_{i}"):
+            if st.button(f"🔚️ Verwijder perceel", key=f"verwijder_{i}"):
                 save_state()
                 st.session_state["percelen"].pop(i)
                 save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
@@ -648,7 +653,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
-  
+
 # Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
 coord_type = st.sidebar.radio("Coördinatentype", ["UTM", "Latitude/Longitude"], index=1)
