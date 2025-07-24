@@ -467,6 +467,10 @@ for perceel in st.session_state.percelen:
 
 with st.container():
     output = st_folium(m, width=1000, height=500)
+    
+    if output and output.get("last_object_clicked_tooltip"):
+        st.session_state["active_locatie"] = output["last_object_clicked_tooltip"]
+
     st.markdown("", unsafe_allow_html=True)
 
 
@@ -499,7 +503,10 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
     huidige_fase = bepaal_hoogste_fase(perceel) if perceel["uploads"] else "Aankoop"
 
-    with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=False):
+    # 📍 Automatisch openen als dit perceel is aangeklikt op de kaart
+    is_active = st.session_state.get("active_locatie") == perceel.get("locatie")
+
+    with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=is_active):
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
         if huidige_fase == "Verkoop":
@@ -546,7 +553,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         huidige_fase = bepaal_hoogste_fase(perceel)
         st.markdown(f"📌 Huidige fase (live berekend): {huidige_fase}")
 
-        if st.button(f"💾 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_context_{i}"):
+        if st.button(f"📂 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_context_{i}"):
             save_state()
             perceel["dealstage"] = bepaal_hoogste_fase(perceel)
             save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
@@ -562,7 +569,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
             naam_waarde = inv.get("naam", "") if isinstance(inv, dict) else str(inv)
 
-            # ✅ Veilige bedrag_waarde cast
             try:
                 bedrag_waarde = float(inv.get("bedrag_eur", 0.0)) if isinstance(inv, dict) else 0.0
             except (ValueError, TypeError):
@@ -611,7 +617,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         perceel["investeerders"] = nieuwe_investeerders
 
         if is_admin:
-            if st.button(f"💾 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_bewerken_{i}"):
+            if st.button(f"📂 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_bewerken_{i}"):
                 save_state()
                 save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
                 st.cache_data.clear()
@@ -624,8 +630,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.cache_data.clear()
                 st.session_state["rerun_trigger"] = True
         else:
-            st.info("🔒 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
-
+            st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
   
 # Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
@@ -725,4 +730,4 @@ if is_admin and toevoegen:
 
         st.session_state["skip_load"] = False
         st.cache_data.clear()
-        st.rerun()
+        st.rerun() 
