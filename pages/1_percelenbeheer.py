@@ -375,8 +375,18 @@ for perceel in st.session_state.get("percelen", []):
             if isinstance(point, list) and len(point) == 2:
                 alle_coords.append(point)
 
-# 📌 Bepaal kaart-instelling op basis van percelen
-if alle_coords:
+# 📌 Bepaal kaart-instelling met zoom op geselecteerde polygon (indien beschikbaar)
+kaart_focus = st.session_state.get("kaart_focus_buffer")
+
+if kaart_focus and isinstance(kaart_focus, list) and len(kaart_focus) >= 1:
+    # Zoom op geselecteerde polygon
+    m = folium.Map(
+        tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attr="Google Hybrid"
+    )
+    m.fit_bounds(kaart_focus)
+elif alle_coords:
+    # Zoom op alle percelen
     min_lat = min(p[0] for p in alle_coords)
     max_lat = max(p[0] for p in alle_coords)
     min_lon = min(p[1] for p in alle_coords)
@@ -388,7 +398,7 @@ if alle_coords:
     )
     m.fit_bounds(bounds)
 else:
-    # Fallback locatie als er nog geen polygonen zijn
+    # Fallback locatie
     m = folium.Map(
         location=[13.29583, -16.74694],
         zoom_start=18,
@@ -465,13 +475,20 @@ for perceel in st.session_state.percelen:
                 icon=folium.Icon(color="blue", icon="info-sign")
             ).add_to(m)
 
+
 with st.container():
     output = st_folium(m, width=1000, height=500)
-    
+
     if output and output.get("last_object_clicked_tooltip"):
         st.session_state["active_locatie"] = output["last_object_clicked_tooltip"]
 
+        for perceel in st.session_state["percelen"]:
+            if perceel.get("locatie") == st.session_state["active_locatie"]:
+                st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
+                break
+
     st.markdown("", unsafe_allow_html=True)
+
 
 
 if st.button("↩ Undo laatste wijziging"):
