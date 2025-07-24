@@ -9,13 +9,14 @@ st.image("QG.png", width=180)
 import pandas as pd
 import json
 from streamlit_folium import st_folium
-import folium
+import folium 
 import copy
 from folium.plugins import Draw
 from datetime import date
 from utils import get_exchange_rate_eur_to_gmd, save_percelen_as_json, load_percelen_from_json
 from pyproj import Transformer
 from utils import render_pipeline
+from utils import format_currency
 from auth import login_check
 login_check()
 
@@ -249,23 +250,27 @@ aankoopdatum = st.sidebar.date_input("🗕️ Aankoopdatum", value=date.today())
 # 👇 KEUZEVAK VOOR EUR / GMD
 invoer_valuta = st.sidebar.radio("Valuta aankoopprijs", ["EUR", "GMD"], horizontal=True)
 
+valutasymbool = "€" if invoer_valuta == "EUR" else "GMD"
+col1, col2 = st.sidebar.columns([1, 4])
+col1.markdown(f"**{valutasymbool}**")
+invoerwaarde = col2.number_input(
+    "Aankoopprijs", label_visibility="collapsed",
+    min_value=0.0, format="%.2f", value=0.0
+)
+
 if invoer_valuta == "EUR":
-    aankoopprijs_eur = st.sidebar.number_input(
-        "💶 Aankoopprijs (EUR)", min_value=0.0, format="%.2f", value=0.0
-    )
+    aankoopprijs_eur = invoerwaarde
     if wisselkoers:
         aankoopprijs = round(aankoopprijs_eur * wisselkoers)
-        st.sidebar.info(f"≈ {aankoopprijs:,.0f} GMD (koers: {wisselkoers:.2f})")
+        st.sidebar.info(f"≈ {format_currency(aankoopprijs, 'GMD')} (koers: {wisselkoers:.2f})")
     else:
         aankoopprijs = 0
         st.sidebar.warning("Wisselkoers niet beschikbaar — GMD niet omgerekend.")
 else:
-    aankoopprijs = st.sidebar.number_input(
-        "🇬🇲 Aankoopprijs (GMD)", min_value=0.0, format="%.0f", value=0.0
-    )
+    aankoopprijs = invoerwaarde
     if wisselkoers:
         aankoopprijs_eur = round(aankoopprijs / wisselkoers, 2)
-        st.sidebar.info(f"≈ {aankoopprijs_eur:,.2f} EUR (koers: {wisselkoers:.2f})")
+        st.sidebar.info(f"≈ {format_currency(aankoopprijs_eur, 'EUR')} (koers: {wisselkoers:.2f})")
     else:
         aankoopprijs_eur = 0
         st.sidebar.warning("Wisselkoers niet beschikbaar — EUR niet omgerekend.")
@@ -277,7 +282,7 @@ if snel_verkocht:
     verkoopprijs_eur = st.sidebar.number_input("💶 Verkoopprijs (EUR)", min_value=0.0, format="%.2f", value=0.0)
     if wisselkoers:
         verkoopprijs = round(verkoopprijs_eur * wisselkoers)
-        st.sidebar.info(f"≈ {verkoopprijs:,.0f} GMD (koers: {wisselkoers:.2f})")
+        st.sidebar.info(f"≈ {format_currency(verkoopprijs, 'GMD')} (koers: {wisselkoers:.2f})")
     else:
         verkoopprijs = 0
         st.sidebar.warning("Wisselkoers niet beschikbaar — GMD niet omgerekend.")
@@ -442,7 +447,8 @@ for perceel in st.session_state.percelen:
     popup_html = f"""
     <b>📍 Locatie:</b> {perceel.get('locatie', 'Onbekend')}<br>
     <b>🗓️ Aankoopdatum:</b> {perceel.get('aankoopdatum', 'n.v.t.')}<br>
-    <b>💰 Aankoopprijs:</b> {perceel.get('aankoopprijs', 0):,.0f} GMD<br>
+    <b>💰 Aankoopprijs:</b> {format_currency(perceel.get('aankoopprijs', 0), 'GMD')}<br>
+    <b>💶 Aankoopprijs (EUR):</b> {format_currency(perceel.get('aankoopprijs_eur', 0.0), 'EUR')}<br>
     <b>🔖 Dealstage:</b> {perceel.get('dealstage', 'Onbekend')}<br>
     <b>🏷️ Eigendom:</b> {perceel.get('eigendomstype', 'Onbekend')}<br>
     <b>🔹 Wordt gesplitst:</b> {'Ja' if perceel.get('wordt_gesplitst') else 'Nee'}<br>
