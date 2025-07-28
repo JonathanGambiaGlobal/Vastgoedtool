@@ -128,7 +128,10 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
     aankoopprijs = safe_float(perceel.get("aankoopprijs"))
     aankoopdatum = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce")
     investeerders = perceel.get("investeerders", [])
-    totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders)
+    if not isinstance(investeerders, list):
+        investeerders = []
+
+    totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders if isinstance(i, dict))
     eigen_inleg = aankoopprijs - totaal_extern
 
     if eigen_inleg > 0:
@@ -144,75 +147,12 @@ def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: in
         return None
 
     verkoopprijs = safe_float(perceel.get("verkoopprijs"))
-    if verkoopprijs > 0:
-        verkoopwaarde = verkoopprijs
-    else:
-        verkoopwaarde = aankoopprijs * ((1 + groei_pct / 100) ** horizon_jaren)
+    verkoopwaarde = verkoopprijs if verkoopprijs > 0 else aankoopprijs * ((1 + groei_pct / 100) ** horizon_jaren)
 
     vandaag = datetime.today()
     maanden = max((vandaag.year - aankoopdatum.year) * 12 + (vandaag.month - aankoopdatum.month), 1)
     jaren = maanden / 12
 
-    totaal_inleg = 0
-    totaal_rente = 0
-    investeerder_resultaten = []
-
-for inv in investeerders:
-    if isinstance(inv, dict):
-        bedrag = safe_float(inv.get("bedrag"))
-        rente = safe_float(inv.get("rente"))
-        winstdeling_pct = safe_float(inv.get("winstdeling"))
-        rentetype = inv.get("rentetype", "maandelijks").lower()
-        naam = inv.get("naam", "Investeerder")
-    else:
-        bedrag = 0.0
-        rente = 0.0
-        winstdeling_pct = 0.0
-        rentetype = "bij verkoop"
-        naam = str(inv)
-
-    if rentetype == "maandelijks":
-        rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
-    elif rentetype == "jaarlijks":
-        rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
-    elif rentetype == "bij verkoop":
-        rente_opbouw = bedrag * rente
-    else:
-        rente_opbouw = 0
-
-    totaal_inleg += bedrag
-    totaal_rente += rente_opbouw
-
-    investeerder_resultaten.append({
-        "naam": naam,
-        "inleg": round(bedrag, 2),
-        "rente": round(rente_opbouw, 2),
-        "kapitaalkosten": round(bedrag + rente_opbouw, 2),
-        "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
-        "rentetype": rentetype,
-        "winstdeling_pct": winstdeling_pct
-    })
-
-
-def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
-    def safe_float(value):
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return 0.0
-
-    aankoopprijs = safe_float(perceel.get("aankoopprijs"))
-    verkoopwaarde = safe_float(perceel.get("verkoopprijs"))
-    aankoopdatum = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce")
-    verkoopdatum = pd.to_datetime(perceel.get("verkoopdatum"), errors="coerce")
-
-    if not pd.notnull(aankoopdatum) or aankoopprijs <= 0 or verkoopwaarde <= 0:
-        return None
-
-    maanden = max((verkoopdatum.year - aankoopdatum.year) * 12 + (verkoopdatum.month - aankoopdatum.month), 1)
-    jaren = maanden / 12
-
-    investeerders = perceel.get("investeerders", [])
     totaal_inleg = 0
     totaal_rente = 0
     investeerder_resultaten = []
@@ -274,6 +214,88 @@ def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
     }
 
 
+def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
+    def safe_float(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    aankoopprijs = safe_float(perceel.get("aankoopprijs"))
+    verkoopwaarde = safe_float(perceel.get("verkoopprijs"))
+    aankoopdatum = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce")
+    verkoopdatum = pd.to_datetime(perceel.get("verkoopdatum"), errors="coerce")
+
+    if not pd.notnull(aankoopdatum) or aankoopprijs <= 0 or verkoopwaarde <= 0:
+        return None
+
+    maanden = max((verkoopdatum.year - aankoopdatum.year) * 12 + (verkoopdatum.month - aankoopdatum.month), 1)
+    jaren = maanden / 12
+
+    investeerders = perceel.get("investeerders", [])
+    if not isinstance(investeerders, list):
+        investeerders = []
+
+    totaal_inleg = 0
+    totaal_rente = 0
+    investeerder_resultaten = []
+
+    for inv in investeerders:
+        if isinstance(inv, dict):
+            bedrag = safe_float(inv.get("bedrag"))
+            rente = safe_float(inv.get("rente"))
+            winstdeling_pct = safe_float(inv.get("winstdeling"))
+            rentetype = inv.get("rentetype", "maandelijks").lower()
+            naam = inv.get("naam", "Investeerder")
+        else:
+            bedrag = 0.0
+            rente = 0.0
+            winstdeling_pct = 0.0
+            rentetype = "bij verkoop"
+            naam = str(inv)
+
+        if rentetype == "maandelijks":
+            rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
+        elif rentetype == "jaarlijks":
+            rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
+        elif rentetype == "bij verkoop":
+            rente_opbouw = bedrag * rente
+        else:
+            rente_opbouw = 0
+
+        totaal_inleg += bedrag
+        totaal_rente += rente_opbouw
+
+        investeerder_resultaten.append({
+            "naam": naam,
+            "inleg": round(bedrag, 2),
+            "rente": round(rente_opbouw, 2),
+            "kapitaalkosten": round(bedrag + rente_opbouw, 2),
+            "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
+            "rentetype": rentetype,
+            "winstdeling_pct": winstdeling_pct
+        })
+
+    netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
+    waardestijging = max(0, verkoopwaarde - aankoopprijs)
+
+    for result in investeerder_resultaten:
+        winstdeling_pct = result.get("winstdeling_pct", 0)
+        winst_aandeel = waardestijging * winstdeling_pct
+        result["winstdeling"] = round(winst_aandeel, 2)
+        result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
+
+    return {
+        "locatie": perceel.get("locatie"),
+        "verkoopwaarde": round(verkoopwaarde, 2),
+        "verkoopwaarde_eur": round(verkoopwaarde / exchange_rate, 2) if exchange_rate else None,
+        "totaal_inleg": round(totaal_inleg, 2),
+        "totaal_rente": round(totaal_rente, 2),
+        "netto_winst": round(netto_winst, 2),
+        "netto_winst_eur": round(netto_winst / exchange_rate, 2) if exchange_rate else None,
+        "investeerders": investeerder_resultaten
+    }
+
 # Interface
 st.subheader("📈 Analyse verkochte percelen")
 exchange_rate = get_exchange_rate_eur_to_gmd()
@@ -290,45 +312,82 @@ df.columns = df.columns.str.lower()
 verkochte_df = df[df["dealstage"].str.lower() == "verkocht"]
 
 # 🎯 Strategieanalyse: verrijk de DataFrame met planning en opbrengstvelden
-df["doorlooptijd"] = pd.to_datetime(df.get("doorlooptijd"), errors="coerce")
+if "doorlooptijd" not in df.columns:
+    df["doorlooptijd"] = pd.NaT  # kolom aanmaken indien ontbreekt
 
-df["verwachte_opbrengst_eur"] = pd.to_numeric(df.get("verwachte_opbrengst_eur", 0), errors="coerce").fillna(0)
-df["verwachte_kosten_eur"] = pd.to_numeric(df.get("verwachte_kosten_eur", 0), errors="coerce").fillna(0)
+# Converteer naar datetime
+df["doorlooptijd"] = pd.to_datetime(df["doorlooptijd"], errors="coerce")
 
+# 🔎 Debug: toon unieke waarden om te zien waarom sommige geen datetime zijn
+st.write("DEBUG - unieke waarden in doorlooptijd:", df["doorlooptijd"].unique())
+
+# ✅ Zorg dat de kolommen voor opbrengst, kosten en winst altijd bestaan
+for col in ["verwachte_opbrengst_eur", "verwachte_kosten_eur", "verwachte_winst_eur"]:
+    if col not in df.columns:
+        df[col] = [0] * len(df)   # lijst van nullen met dezelfde lengte als df
+
+# Converteer naar numeriek en vul missende waarden aan met 0
+df["verwachte_opbrengst_eur"] = pd.to_numeric(df["verwachte_opbrengst_eur"], errors="coerce").fillna(0)
+df["verwachte_kosten_eur"]   = pd.to_numeric(df["verwachte_kosten_eur"], errors="coerce").fillna(0)
+
+# Bereken verwachte winst
 df["verwachte_winst_eur"] = df["verwachte_opbrengst_eur"] - df["verwachte_kosten_eur"]
+
+# ✅ Zorg dat de strategie-kolom altijd bestaat
+if "strategie" not in df.columns:
+    df["strategie"] = None
+
 
 # 📅 Totale verwachte winst per jaar (o.b.v. doorlooptijd)
 st.subheader("📆 Totale verwachte winst per jaar")
 
-df_planning = df[pd.notnull(df["doorlooptijd"])].copy()
-df_planning["jaar"] = df_planning["doorlooptijd"].dt.year
-jaartotalen = df_planning.groupby("jaar")["verwachte_winst_eur"].sum().reset_index()
+# Filter alleen de rijen die echte datums bevatten
+df_planning = df[pd.to_datetime(df["doorlooptijd"], errors="coerce").notnull()].copy()
 
+# Converteer de kolom opnieuw om zeker te zijn dat alles datetime is
+df_planning["doorlooptijd"] = pd.to_datetime(df_planning["doorlooptijd"], errors="coerce")
+
+# Maak standaard een lege DataFrame om fouten te voorkomen
+jaartotalen = pd.DataFrame(columns=["jaar", "verwachte_winst_eur"])
+
+if not df_planning.empty:
+    df_planning["jaar"] = df_planning["doorlooptijd"].dt.year
+    jaartotalen = df_planning.groupby("jaar")["verwachte_winst_eur"].sum().reset_index()
+
+# Toon resultaten of info
 if not jaartotalen.empty:
-    st.dataframe(jaartotalen.rename(columns={"jaar": "Jaar", "verwachte_winst_eur": "Totale verwachte winst (EUR)"}))
+    st.dataframe(
+        jaartotalen.rename(
+            columns={"jaar": "Jaar", "verwachte_winst_eur": "Totale verwachte winst (EUR)"}
+        )
+    )
 else:
-    st.info("Nog geen verwachte doorlooptijden ingevoerd.")
+    st.info("Nog geen geldige doorlooptijden ingevoerd.")
 
 # 📌 Overzicht per strategie
 st.subheader("🧭 Strategieoverzicht")
 
+# ✅ Zorg dat de kolom altijd bestaat
+if "strategie" not in df.columns:
+    df["strategie"] = None
+
 df_strategie = df[df["strategie"].notna()].copy()
 
-strategie_stats = df_strategie.groupby("strategie").agg({
-    "locatie": "count",
-    "verwachte_opbrengst_eur": "sum",
-    "verwachte_kosten_eur": "sum",
-    "verwachte_winst_eur": "sum"
-}).reset_index()
+if not df_strategie.empty:
+    strategie_stats = df_strategie.groupby("strategie").agg({
+        "locatie": "count",
+        "verwachte_opbrengst_eur": "sum",
+        "verwachte_kosten_eur": "sum",
+        "verwachte_winst_eur": "sum"
+    }).reset_index()
 
-strategie_stats = strategie_stats.rename(columns={
-    "locatie": "Aantal percelen",
-    "verwachte_opbrengst_eur": "Totale opbrengst (EUR)",
-    "verwachte_kosten_eur": "Totale kosten (EUR)",
-    "verwachte_winst_eur": "Totale winst (EUR)"
-})
+    strategie_stats = strategie_stats.rename(columns={
+        "locatie": "Aantal percelen",
+        "verwachte_opbrengst_eur": "Totale opbrengst (EUR)",
+        "verwachte_kosten_eur": "Totale kosten (EUR)",
+        "verwachte_winst_eur": "Totale winst (EUR)"
+    })
 
-if not strategie_stats.empty:
     st.dataframe(strategie_stats, use_container_width=True)
 else:
     st.info("Er zijn nog geen strategieën ingevoerd.")
@@ -408,4 +467,3 @@ if resultaten:
                         f"({format_currency(totaal_eur, 'EUR')}), netto winst: {format_currency(winst_eur, 'EUR')} "
                         f"({rendement_pct:.1f}%)"
                     )
-
