@@ -361,15 +361,6 @@ eigendomstype = st.sidebar.selectbox("Eigendomsvorm", ["Customary land", "Freeho
 def get_vereiste_documenten(perceel, fase):
     return documentvereisten_per_fase.get(fase, []).copy()
 
-def bepaal_hoogste_fase(perceel):
-    for fase in PIPELINE_FASEN:
-        vereiste_docs = get_vereiste_documenten(perceel, fase)
-        if vereiste_docs:
-            if not all(perceel.get("uploads", {}).get(doc, False) for doc in vereiste_docs):
-                return fase
-    return PIPELINE_FASEN[-1]  # Laatste fase als alles aanwezig
-
-
 if snel_verkocht:
     docs_sidebar = []
 else:
@@ -543,7 +534,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
     if "uploads_urls" not in perceel or not isinstance(perceel["uploads_urls"], dict):
         perceel["uploads_urls"] = {}
 
-    huidige_fase = bepaal_hoogste_fase(perceel) if perceel["uploads"] else "Aankoop"
+    huidige_fase = perceel.get("dealstage", "Aankoop")
 
     # 📍 Automatisch openen als dit perceel is aangeklikt op de kaart
     is_active = st.session_state.get("active_locatie") == perceel.get("locatie")
@@ -597,8 +588,29 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         perceel["uploads"] = nieuwe_uploads
         perceel["uploads_urls"] = nieuwe_uploads_urls
 
-        huidige_fase = bepaal_hoogste_fase(perceel)
-        st.markdown(f"📌 Huidige fase (live berekend): {huidige_fase}")
+        st.markdown(f"📌 Huidige fase: {huidige_fase}")
+
+        # 🚦 Navigatie knoppen voor fases
+        fase_index = PIPELINE_FASEN.index(huidige_fase)
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if fase_index > 0:
+                vorige_fase = PIPELINE_FASEN[fase_index - 1]
+                if st.button(f"⬅️ Vorige fase ({vorige_fase})", key=f"vorige_fase_{i}"):
+                    perceel["dealstage"] = vorige_fase
+                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    st.session_state["skip_load"] = True
+                    st.rerun()
+
+        with col2:
+            if fase_index + 1 < len(PIPELINE_FASEN):
+                volgende_fase = PIPELINE_FASEN[fase_index + 1]
+                if st.button(f"➡️ Volgende fase ({volgende_fase})", key=f"volgende_fase_{i}"):
+                    perceel["dealstage"] = volgende_fase
+                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    st.session_state["skip_load"] = True
+                    st.rerun()
 
         st.markdown("#### 🌟 Strategie en planning")
 
@@ -705,6 +717,7 @@ else:
     st.sidebar.info("🔒 Alleen admins kunnen percelen toevoegen.")
     toevoegen = False  # Zet toevoegen uit voor niet-admins
 
+
 if is_admin and toevoegen:
     save_state()  
     # Validatie
@@ -718,9 +731,8 @@ if is_admin and toevoegen:
         st.sidebar.error("❗ Polygon moet minstens 3 punten bevatten.")
     else:
         # 🔔 Bepaal dealstage vóórdat we perceel dict aanmaken
-        dealstage = "Verkoop" if snel_verkocht else bepaal_hoogste_fase({
-            "uploads": uploads
-        })
+        dealstage = "Verkoop" if snel_verkocht else "Aankoop"
+
 
         # 🛡️ Safeguard: fix investeerders direct bij invoer
         if isinstance(investeerders, str):
