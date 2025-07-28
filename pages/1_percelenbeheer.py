@@ -612,7 +612,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     st.session_state["skip_load"] = True
                     st.rerun()
 
-        st.markdown("#### 🌟 Strategie en planning")
+        st.markdown("#### Strategie en planning")
 
         strategie_opties = [
             "Korte termijn verkoop",
