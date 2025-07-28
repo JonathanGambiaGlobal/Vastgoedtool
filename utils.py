@@ -269,3 +269,10 @@ def render_pipeline(huidige_fase: str, fase_status: dict = None) -> str:
             symbool = "⚪"
         symbols.append(f"{symbool} {fase}")
     return " → ".join(symbols)
+
+def format_currency(amount, currency="EUR") -> str:
+    if currency == "EUR":
+        return f"€ {amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    elif currency == "GMD":
+        return f"{amount:,.0f} GMD".replace(",", ".")
+    return str(amount)
