@@ -140,7 +140,8 @@ def undo():
 PIPELINE_FASEN = [
     "Aankoop",
     "Omzetting / bewerking",
-    "Verkoop"
+    "Verkoop",
+    "Verkocht"  
 ]
 
 documentvereisten_per_fase = {
@@ -590,8 +591,42 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
         st.markdown(f"📌 Huidige fase: {huidige_fase}")
 
+        # 💶 Verkoopprijs invoeren bij laatste fase
+        if huidige_fase == "Verkoop":
+            wisselkoers = st.session_state.get("wisselkoers") or get_exchange_rate_eur_to_gmd()
+            if not wisselkoers:
+                st.warning("Wisselkoers niet beschikbaar — EUR/GMD omzetting werkt niet.")
+
+            verkoopprijs_eur = st.number_input(
+                "💶 Verkoopprijs (EUR)",
+                min_value=0.0,
+                value=perceel.get("verkoopprijs_eur", 0.0),
+                format="%.2f",
+                key=f"verkoopprijs_eur_{i}"
+            )
+
+            verkoopprijs_gmd = round(verkoopprijs_eur * wisselkoers) if wisselkoers else 0
+            st.info(f"≈ {format_currency(verkoopprijs_gmd, 'GMD')} (koers: {wisselkoers:.2f})")
+
+            perceel["verkoopprijs_eur"] = verkoopprijs_eur
+            perceel["verkoopprijs"] = verkoopprijs_gmd
+
+            if st.button(f"✅ Zet perceel op verkocht", key=f"verkocht_{i}"):
+                if verkoopprijs_eur > 0:
+                    perceel["dealstage"] = "Verkocht"
+                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    st.success(f"Perceel '{perceel.get('locatie')}' staat nu op verkocht.")
+                    st.session_state["skip_load"] = True
+                    st.rerun()
+                else:
+                    st.error("❗ Vul eerst een verkoopprijs in EUR in.")
+
         # 🚦 Navigatie knoppen voor fases
-        fase_index = PIPELINE_FASEN.index(huidige_fase)
+        if huidige_fase in PIPELINE_FASEN:
+            fase_index = PIPELINE_FASEN.index(huidige_fase)
+        else:
+            fase_index = len(PIPELINE_FASEN) - 1  # fallback als fase onbekend
+
         col1, col2 = st.columns(2)
 
         with col1:
@@ -604,7 +639,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     st.rerun()
 
         with col2:
-            if fase_index + 1 < len(PIPELINE_FASEN):
+            if huidige_fase != "Verkocht" and fase_index + 1 < len(PIPELINE_FASEN):
                 volgende_fase = PIPELINE_FASEN[fase_index + 1]
                 if st.button(f"➡️ Volgende fase ({volgende_fase})", key=f"volgende_fase_{i}"):
                     perceel["dealstage"] = volgende_fase
@@ -612,7 +647,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     st.session_state["skip_load"] = True
                     st.rerun()
 
-        st.markdown("#### Strategie en planning")
+        st.markdown("#### 🌟 Strategie en planning")
 
         strategie_opties = [
             "Korte termijn verkoop",
@@ -671,7 +706,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
-
 
 # Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
