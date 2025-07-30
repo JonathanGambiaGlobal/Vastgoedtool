@@ -558,10 +558,10 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             perceel["wordt_gesplitst"] = False
 
         perceel["lengte"] = st.number_input(
-            "📏 Lengte (m)", min_value=0, value=perceel.get("lengte", 0), key=f"edit_lengte_{i}"
+            "📏 Lengte (m)", min_value=0, value=int(perceel.get("lengte", 0)), key=f"edit_lengte_{i}"
         )
         perceel["breedte"] = st.number_input(
-            "📐 Breedte (m)", min_value=0, value=perceel.get("breedte", 0), key=f"edit_breedte_{i}"
+            "📐 Breedte (m)", min_value=0, value=int(perceel.get("breedte", 0)), key=f"edit_breedte_{i}"
         )
 
         perceel["eigendomstype"] = st.selectbox(
@@ -573,8 +573,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
-        nieuwe_uploads = {}
-        nieuwe_uploads_urls = {}
+        nieuwe_uploads, nieuwe_uploads_urls = {}, {}
         for doc in vereiste_docs:
             nieuwe_uploads[doc] = st.checkbox(
                 f"{doc} aanwezig?",
@@ -586,8 +585,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 value=perceel.get("uploads_urls", {}).get(doc, ""),
                 key=f"upload_url_{i}_{doc}"
             )
-        perceel["uploads"] = nieuwe_uploads
-        perceel["uploads_urls"] = nieuwe_uploads_urls
+        perceel["uploads"], perceel["uploads_urls"] = nieuwe_uploads, nieuwe_uploads_urls
 
         st.markdown(f"📌 Huidige fase: {huidige_fase}")
 
@@ -595,21 +593,20 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         if huidige_fase == "Verkoop":
             wisselkoers = st.session_state.get("wisselkoers") or get_exchange_rate_eur_to_gmd()
             if not wisselkoers:
-                st.warning("Wisselkoers niet beschikbaar — EUR/GMD omzetting werkt niet.")
+                st.warning("⚠️ Wisselkoers niet beschikbaar — EUR/GMD omzetting werkt niet.")
 
             verkoopprijs_eur = st.number_input(
                 "💶 Verkoopprijs (EUR)",
                 min_value=0.0,
-                value=perceel.get("verkoopprijs_eur", 0.0),
+                value=float(perceel.get("verkoopprijs_eur", 0.0)),
                 format="%.2f",
                 key=f"verkoopprijs_eur_{i}"
             )
 
-            verkoopprijs_gmd = round(verkoopprijs_eur * wisselkoers) if wisselkoers else 0
+            verkoopprijs_gmd = round(verkoopprijs_eur * wisselkoers) if wisselkoers else 0.0
             st.info(f"≈ {format_currency(verkoopprijs_gmd, 'GMD')} (koers: {wisselkoers:.2f})")
 
-            perceel["verkoopprijs_eur"] = verkoopprijs_eur
-            perceel["verkoopprijs"] = verkoopprijs_gmd
+            perceel["verkoopprijs_eur"], perceel["verkoopprijs"] = verkoopprijs_eur, verkoopprijs_gmd
 
             if st.button(f"✅ Zet perceel op verkocht", key=f"verkocht_{i}"):
                 if verkoopprijs_eur > 0:
@@ -625,10 +622,9 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         if huidige_fase in PIPELINE_FASEN:
             fase_index = PIPELINE_FASEN.index(huidige_fase)
         else:
-            fase_index = len(PIPELINE_FASEN) - 1  # fallback als fase onbekend
+            fase_index = len(PIPELINE_FASEN) - 1
 
         col1, col2 = st.columns(2)
-
         with col1:
             if fase_index > 0:
                 vorige_fase = PIPELINE_FASEN[fase_index - 1]
@@ -637,7 +633,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
                     st.session_state["skip_load"] = True
                     st.rerun()
-
         with col2:
             if huidige_fase != "Verkocht" and fase_index + 1 < len(PIPELINE_FASEN):
                 volgende_fase = PIPELINE_FASEN[fase_index + 1]
@@ -655,7 +650,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             "Zelf woningen bouwen",
             "Zelf bedrijf starten"
         ]
-
         perceel["strategie"] = st.selectbox(
             "Strategie",
             strategie_opties,
@@ -663,21 +657,82 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             key=f"strategie_{i}"
         )
 
-        perceel["verwachte_opbrengst_eur"] = st.number_input(
-            "Verwachte opbrengst (EUR)",
-            min_value=0.0,
-            value=perceel.get("verwachte_opbrengst_eur", 0.0),
-            format="%.2f",
-            key=f"verwachte_opbrengst_{i}"
-        )
+        # Extra invoer bij Verkavelen en verkopen
+        if perceel["strategie"] == "Verkavelen en verkopen":
+            perceel["aantal_plots"] = st.number_input(
+                "Aantal kavels",
+                min_value=1,
+                value=int(perceel.get("aantal_plots", 1)),
+                key=f"aantal_plots_{i}"
+            )
 
-        perceel["verwachte_kosten_eur"] = st.number_input(
-            "Verwachte kosten (EUR)",
-            min_value=0.0,
-            value=perceel.get("verwachte_kosten_eur", 0.0),
-            format="%.2f",
-            key=f"verwachte_kosten_{i}"
-        )
+            wisselkoers = st.session_state.get("wisselkoers") or get_exchange_rate_eur_to_gmd()
+            if not wisselkoers:
+                st.warning("⚠️ Wisselkoers niet beschikbaar — omrekening werkt niet.")
+
+            valuta_keuze = st.radio(
+                "Valuta invoer voor prijs per kavel",
+                ["EUR", "GMD"],
+                horizontal=True,
+                key=f"valuta_kavel_{i}"
+            )
+
+            if valuta_keuze == "EUR":
+                prijs_eur = st.number_input(
+                    "Prijs per kavel (EUR)",
+                    min_value=0.0,
+                    value=float(perceel.get("prijs_per_plot_eur", 0.0)),
+                    format="%.2f",
+                    key=f"prijs_plot_eur_{i}"
+                )
+                prijs_gmd = round(prijs_eur * wisselkoers) if wisselkoers else 0.0
+            else:
+                prijs_gmd = st.number_input(
+                    "Prijs per kavel (GMD)",
+                    min_value=0.0,
+                    value=float(perceel.get("prijs_per_plot_gmd", 250000.0)),
+                    format="%.0f",
+                    key=f"prijs_plot_gmd_{i}"
+                )
+                prijs_eur = round(prijs_gmd / wisselkoers, 2) if wisselkoers else 0.0
+
+            perceel["prijs_per_plot_eur"], perceel["prijs_per_plot_gmd"] = prijs_eur, prijs_gmd
+
+            perceel["verkoopperiode_maanden"] = st.number_input(
+                "Verkoopperiode (maanden)",
+                min_value=1,
+                value=int(perceel.get("verkoopperiode_maanden", 12)),
+                key=f"periode_{i}"
+            )
+
+            totaal_opbrengst_gmd = perceel["aantal_plots"] * prijs_gmd
+            totaal_opbrengst_eur = perceel["aantal_plots"] * prijs_eur
+            perceel["totaal_opbrengst_gmd"], perceel["totaal_opbrengst_eur"] = totaal_opbrengst_gmd, totaal_opbrengst_eur
+
+            opbrengst_per_maand_gmd = totaal_opbrengst_gmd / perceel["verkoopperiode_maanden"]
+            opbrengst_per_maand_eur = totaal_opbrengst_eur / perceel["verkoopperiode_maanden"]
+            perceel["opbrengst_per_maand_gmd"], perceel["opbrengst_per_maand_eur"] = opbrengst_per_maand_gmd, opbrengst_per_maand_eur
+
+            st.info(f"💶 Totale opbrengst: {format_currency(totaal_opbrengst_eur, 'EUR')} ≈ {format_currency(totaal_opbrengst_gmd, 'GMD')}")
+            st.info(f"📅 Opbrengst per maand: {format_currency(opbrengst_per_maand_eur, 'EUR')} ≈ {format_currency(opbrengst_per_maand_gmd, 'GMD')}")
+
+        else:
+            # Alleen tonen bij andere strategieën
+            perceel["verwachte_opbrengst_eur"] = st.number_input(
+                "Verwachte opbrengst (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_opbrengst_eur", 0.0)),
+                format="%.2f",
+                key=f"verwachte_opbrengst_{i}"
+            )
+
+            perceel["verwachte_kosten_eur"] = st.number_input(
+                "Verwachte kosten (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_kosten_eur", 0.0)),
+                format="%.2f",
+                key=f"verwachte_kosten_{i}"
+            )
 
         perceel["doorlooptijd"] = st.date_input(
             "Verwachte einddatum",
@@ -706,6 +761,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
+
 
 # Coördinaten invoer (UTM of Lat/Lon)
 st.sidebar.markdown("### 📍 Coördinaten invoer")
