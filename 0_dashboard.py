@@ -363,28 +363,31 @@ if "strategie" not in df.columns:
     df["strategie"] = None
 
 
-# 📅 Totale verwachte winst per jaar (o.b.v. doorlooptijd)
+# 📅 Totale verwachte winst per jaar
 st.subheader("📆 Totale verwachte winst per jaar")
 
-# Filter alleen de rijen die echte datums bevatten
+# Verrijk met verkavelingsopbrengsten
+if "totaal_opbrengst_eur" in df.columns:
+    df["verwachte_opbrengst_eur"] = df["verwachte_opbrengst_eur"] + df["totaal_opbrengst_eur"].fillna(0)
+
+if "opbrengst_per_maand_eur" in df.columns and "verkoopperiode_maanden" in df.columns:
+    df["verwachte_winst_eur"] = df["verwachte_opbrengst_eur"] - df["verwachte_kosten_eur"]
+
+# Filter alleen rijen met een geldige einddatum
 df_planning = df[pd.to_datetime(df["doorlooptijd"], errors="coerce").notnull()].copy()
-
-# Converteer de kolom opnieuw om zeker te zijn dat alles datetime is
 df_planning["doorlooptijd"] = pd.to_datetime(df_planning["doorlooptijd"], errors="coerce")
-
-# Maak standaard een lege DataFrame om fouten te voorkomen
-jaartotalen = pd.DataFrame(columns=["jaar", "verwachte_winst_eur"])
 
 if not df_planning.empty:
     df_planning["jaar"] = df_planning["doorlooptijd"].dt.year
-    jaartotalen = df_planning.groupby("jaar")["verwachte_winst_eur"].sum().reset_index()
+    df_planning["totale_winst_eur"] = df_planning["verwachte_opbrengst_eur"] - df_planning["verwachte_kosten_eur"]
 
-# Toon resultaten of info
-if not jaartotalen.empty:
+    jaartotalen = df_planning.groupby("jaar")["totale_winst_eur"].sum().reset_index()
+
     st.dataframe(
         jaartotalen.rename(
-            columns={"jaar": "Jaar", "verwachte_winst_eur": "Totale verwachte winst (EUR)"}
-        )
+            columns={"jaar": "Jaar", "totale_winst_eur": "Totale verwachte winst (EUR)"}
+        ),
+        use_container_width=True
     )
 else:
     st.info("Nog geen geldige doorlooptijden ingevoerd.")
@@ -392,25 +395,24 @@ else:
 # 📌 Overzicht per strategie
 st.subheader("🧭 Strategieoverzicht")
 
-# ✅ Zorg dat de kolom altijd bestaat
-if "strategie" not in df.columns:
-    df["strategie"] = None
-
 df_strategie = df[df["strategie"].notna()].copy()
 
 if not df_strategie.empty:
+    df_strategie["totale_winst_eur"] = df_strategie["verwachte_opbrengst_eur"] - df_strategie["verwachte_kosten_eur"]
+
     strategie_stats = df_strategie.groupby("strategie").agg({
         "locatie": "count",
         "verwachte_opbrengst_eur": "sum",
         "verwachte_kosten_eur": "sum",
-        "verwachte_winst_eur": "sum"
+        "totale_winst_eur": "sum"
     }).reset_index()
 
     strategie_stats = strategie_stats.rename(columns={
+        "strategie": "Strategie",
         "locatie": "Aantal percelen",
         "verwachte_opbrengst_eur": "Totale opbrengst (EUR)",
         "verwachte_kosten_eur": "Totale kosten (EUR)",
-        "verwachte_winst_eur": "Totale winst (EUR)"
+        "totale_winst_eur": "Totale winst (EUR)"
     })
 
     st.dataframe(strategie_stats, use_container_width=True)
@@ -444,27 +446,39 @@ if resultaten:
     else:
         st.subheader("📊 Prognose actieve percelen")
 
-    # Zorg dat verkoopprijs-kolommen altijd aanwezig zijn
-    if "verkoopprijs" not in df_result.columns:
-        df_result["verkoopprijs"] = 0
-    if "verkoopprijs_eur" not in df_result.columns:
-        df_result["verkoopprijs_eur"] = 0.0
+    # ✅ Zorg dat alle nieuwe kolommen bestaan
+    for col in [
+        "verkoopprijs", "verkoopprijs_eur",
+        "totaal_opbrengst_gmd", "totaal_opbrengst_eur",
+        "opbrengst_per_maand_gmd", "opbrengst_per_maand_eur",
+        "verkoopwaarde", "verkoopwaarde_eur",
+        "totaal_inleg", "totaal_rente",
+        "netto_winst", "netto_winst_eur"
+    ]:
+        if col not in df_result.columns:
+            df_result[col] = 0
 
     # ✅ Kolommenlijst uitbreiden
     kolommen = [
         "locatie",
-        "verkoopprijs", "verkoopprijs_eur",   # toegevoegd
+        "verkoopprijs", "verkoopprijs_eur",
+        "totaal_opbrengst_gmd", "totaal_opbrengst_eur",
+        "opbrengst_per_maand_gmd", "opbrengst_per_maand_eur",
         "verkoopwaarde", "verkoopwaarde_eur",
         "totaal_inleg", "totaal_rente",
         "netto_winst", "netto_winst_eur"
     ]
 
-    # Gebruik reindex om ontbrekende kolommen automatisch aan te vullen
+    # Gebruik reindex zodat ontbrekende kolommen automatisch worden aangevuld
     df_view = df_result.reindex(columns=kolommen, fill_value=0).copy()
 
     # ✅ Valutakolommen formatteren
     df_view["verkoopprijs"] = df_view["verkoopprijs"].apply(lambda x: format_currency(x, "GMD"))
     df_view["verkoopprijs_eur"] = df_view["verkoopprijs_eur"].apply(lambda x: format_currency(x, "EUR"))
+    df_view["totaal_opbrengst_gmd"] = df_view["totaal_opbrengst_gmd"].apply(lambda x: format_currency(x, "GMD"))
+    df_view["totaal_opbrengst_eur"] = df_view["totaal_opbrengst_eur"].apply(lambda x: format_currency(x, "EUR"))
+    df_view["opbrengst_per_maand_gmd"] = df_view["opbrengst_per_maand_gmd"].apply(lambda x: format_currency(x, "GMD"))
+    df_view["opbrengst_per_maand_eur"] = df_view["opbrengst_per_maand_eur"].apply(lambda x: format_currency(x, "EUR"))
     df_view["verkoopwaarde"] = df_view["verkoopwaarde"].apply(lambda x: format_currency(x, "GMD"))
     df_view["verkoopwaarde_eur"] = df_view["verkoopwaarde_eur"].apply(lambda x: format_currency(x, "EUR"))
     df_view["totaal_inleg"] = df_view["totaal_inleg"].apply(lambda x: format_currency(x, "GMD"))
@@ -474,11 +488,6 @@ if resultaten:
 
     # ✅ Tabel tonen
     st.dataframe(df_view.sort_values(by="netto_winst", ascending=False), use_container_width=True)
-
-
-    # ✅ Sorteer en toon
-    st.dataframe(df_view.sort_values(by="netto_winst", ascending=False), use_container_width=True)
-
 
     # 👥 Per investeerder inzicht
     if not verkochte_df.empty:
