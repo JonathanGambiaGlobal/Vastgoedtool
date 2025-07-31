@@ -302,7 +302,68 @@ strategieopties = [
     "Zelf bedrijf starten",
     "Nog onbekend"
 ]
+
 strategie = st.sidebar.selectbox("Doel met dit perceel", strategieopties)
+
+if strategie == "Verkavelen en verkopen":
+    aantal_kavels = st.sidebar.number_input(
+        "Aantal kavels",
+        min_value=1,
+        value=1,
+        key="sidebar_aantal_kavels"
+    )
+
+    valuta_keuze_sidebar = st.sidebar.radio(
+        "Valuta prijs per kavel",
+        ["EUR", "GMD"],
+        horizontal=True,
+        key="valuta_kavel_sidebar"
+    )
+
+    if valuta_keuze_sidebar == "EUR":
+        prijs_per_kavel_eur = st.sidebar.number_input(
+            "Prijs per kavel (EUR)",
+            min_value=0.0,
+            format="%.2f",
+            value=0.0,
+            key="prijs_per_plot_eur_sidebar"
+        )
+        prijs_per_kavel_gmd = round(prijs_per_kavel_eur * wisselkoers) if wisselkoers else 0.0
+    else:
+        prijs_per_kavel_gmd = st.sidebar.number_input(
+            "Prijs per kavel (GMD)",
+            min_value=0.0,
+            format="%.0f",
+            value=0.0,
+            key="prijs_per_plot_gmd_sidebar"
+        )
+        prijs_per_kavel_eur = round(prijs_per_kavel_gmd / wisselkoers, 2) if wisselkoers else 0.0
+
+    verkoopperiode_maanden = st.sidebar.number_input(
+        "Verkoopperiode (maanden)",
+        min_value=1,
+        value=12,
+        key="periode_sidebar"
+    )
+
+    # Berekeningen
+    totaal_opbrengst_gmd = aantal_kavels * prijs_per_kavel_gmd
+    totaal_opbrengst_eur = aantal_kavels * prijs_per_kavel_eur
+    opbrengst_per_maand_gmd = totaal_opbrengst_gmd / verkoopperiode_maanden
+    opbrengst_per_maand_eur = totaal_opbrengst_eur / verkoopperiode_maanden
+
+    st.sidebar.info(f"💶 Totale opbrengst: {format_currency(totaal_opbrengst_eur, 'EUR')} ≈ {format_currency(totaal_opbrengst_gmd, 'GMD')}")
+    st.sidebar.info(f"📅 Opbrengst per maand: {format_currency(opbrengst_per_maand_eur, 'EUR')} ≈ {format_currency(opbrengst_per_maand_gmd, 'GMD')}")
+
+else:
+    aantal_kavels = None
+    prijs_per_kavel_eur = 0.0
+    prijs_per_kavel_gmd = 0.0
+    verkoopperiode_maanden = None
+    totaal_opbrengst_eur = 0.0
+    totaal_opbrengst_gmd = 0.0
+
+# Deze velden blijven altijd
 verwachte_opbrengst = st.sidebar.number_input("Verwachte opbrengst (EUR)", min_value=0.0, format="%.2f", value=0.0)
 verwachte_kosten = st.sidebar.number_input("Verwachte kosten (EUR)", min_value=0.0, format="%.2f", value=0.0)
 doorlooptijd_datum = st.sidebar.date_input("Verwachte einddatum", value=date.today())
@@ -571,6 +632,64 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             key=f"eigendom_{i}"
         )
 
+        # 👥 Investeerdersbeheer
+        st.markdown("#### 👥 Investeerders")
+        huidige_investeerders = perceel.get("investeerders", [])
+        nieuwe_investeerders = []
+
+        if not huidige_investeerders:
+            st.info("Geen investeerders geregistreerd voor dit perceel.")
+        else:
+            for j, inv in enumerate(huidige_investeerders):
+                st.markdown(f"##### Investeerder {j+1}")
+                naam = st.text_input(
+                    f"Naam investeerder {j+1}",
+                    value=inv.get("naam", ""),
+                    key=f"inv_naam_edit_{i}_{j}"
+                )
+                bedrag_eur = st.number_input(
+                    f"Bedrag {j+1} (EUR)",
+                    min_value=0.0,
+                    format="%.2f",
+                    value=float(inv.get("bedrag_eur", 0.0)),
+                    key=f"inv_bedrag_edit_{i}_{j}"
+                )
+                rente = st.number_input(
+                    f"Rente {j+1} (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    step=0.1,
+                    value=float(inv.get("rente", 0.0)) * 100,
+                    key=f"inv_rente_edit_{i}_{j}"
+                ) / 100
+                winst = st.number_input(
+                    f"Winstdeling {j+1} (%)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    step=1.0,
+                    value=float(inv.get("winstdeling", 0.0)) * 100,
+                    key=f"inv_winst_edit_{i}_{j}"
+                ) / 100
+                rentetype = st.selectbox(
+                    f"Rentevorm {j+1}",
+                    ["maandelijks", "jaarlijks", "bij verkoop"],
+                    index=["maandelijks", "jaarlijks", "bij verkoop"].index(
+                        inv.get("rentetype", "bij verkoop")
+                    ),
+                    key=f"inv_type_edit_{i}_{j}"
+                )
+
+                nieuwe_investeerders.append({
+                    "naam": naam,
+                    "bedrag": round(bedrag_eur * (perceel.get("wisselkoers") or 0)),
+                    "bedrag_eur": bedrag_eur,
+                    "rente": rente,
+                    "winstdeling": winst,
+                    "rentetype": rentetype
+                })
+
+            perceel["investeerders"] = nieuwe_investeerders
+
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
         nieuwe_uploads, nieuwe_uploads_urls = {}, {}
@@ -690,7 +809,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 prijs_gmd = st.number_input(
                     "Prijs per kavel (GMD)",
                     min_value=0.0,
-                    value=float(perceel.get("prijs_per_plot_gmd", 250000.0)),
+                    value=float(perceel.get("prijs_per_plot_gmd", 0.0)),
                     format="%.0f",
                     key=f"prijs_plot_gmd_{i}"
                 )
@@ -823,7 +942,6 @@ if is_admin and toevoegen:
         # 🔔 Bepaal dealstage vóórdat we perceel dict aanmaken
         dealstage = "Verkoop" if snel_verkocht else "Aankoop"
 
-
         # 🛡️ Safeguard: fix investeerders direct bij invoer
         if isinstance(investeerders, str):
             investeerders = [{
@@ -834,6 +952,27 @@ if is_admin and toevoegen:
                 "winstdeling": 0.0,
                 "rentetype": "bij verkoop"
             }]
+
+        # 🔹 Extra logica: alleen vullen bij "Verkavelen en verkopen"
+        if strategie == "Verkavelen en verkopen":
+            aantal_kavels = st.session_state.get("sidebar_aantal_kavels", 1)
+            prijs_per_plot_eur = st.session_state.get("prijs_per_plot_eur_sidebar", 0.0)
+            prijs_per_plot_gmd = st.session_state.get("prijs_per_plot_gmd_sidebar", 0.0)
+            verkoopperiode_maanden = st.session_state.get("periode_sidebar", 12)
+
+            totaal_opbrengst_gmd = aantal_kavels * prijs_per_plot_gmd
+            totaal_opbrengst_eur = aantal_kavels * prijs_per_plot_eur
+            opbrengst_per_maand_gmd = totaal_opbrengst_gmd / verkoopperiode_maanden if verkoopperiode_maanden else 0
+            opbrengst_per_maand_eur = totaal_opbrengst_eur / verkoopperiode_maanden if verkoopperiode_maanden else 0
+        else:
+            aantal_kavels = None
+            prijs_per_plot_eur = 0.0
+            prijs_per_plot_gmd = 0.0
+            verkoopperiode_maanden = None
+            totaal_opbrengst_eur = 0.0
+            totaal_opbrengst_gmd = 0.0
+            opbrengst_per_maand_eur = 0.0
+            opbrengst_per_maand_gmd = 0.0
 
         perceel = {
             "locatie": locatie,
@@ -854,12 +993,22 @@ if is_admin and toevoegen:
             "verkoopprijs": verkoopprijs,
             "verkoopprijs_eur": verkoopprijs_eur if wisselkoers else None,
 
-            # 🎯 Strategie & planning (toegevoegd)
+            # 🎯 Strategie & planning
             "strategie": strategie,
             "verwachte_opbrengst_eur": verwachte_opbrengst,
             "verwachte_kosten_eur": verwachte_kosten,
             "doorlooptijd": doorlooptijd_datum.isoformat() if isinstance(doorlooptijd_datum, date) else "",
-            "status_toelichting": status_toelichting
+            "status_toelichting": status_toelichting,
+
+            # ➕ Nieuw: Verkavelen en verkopen
+            "aantal_plots": aantal_kavels,
+            "prijs_per_plot_eur": prijs_per_plot_eur,
+            "prijs_per_plot_gmd": prijs_per_plot_gmd,
+            "verkoopperiode_maanden": verkoopperiode_maanden,
+            "totaal_opbrengst_eur": totaal_opbrengst_eur,
+            "totaal_opbrengst_gmd": totaal_opbrengst_gmd,
+            "opbrengst_per_maand_eur": opbrengst_per_maand_eur,
+            "opbrengst_per_maand_gmd": opbrengst_per_maand_gmd
         }
 
         st.session_state.percelen.append(perceel)
@@ -869,3 +1018,4 @@ if is_admin and toevoegen:
         st.session_state["skip_load"] = False
         st.cache_data.clear()
         st.rerun()
+
