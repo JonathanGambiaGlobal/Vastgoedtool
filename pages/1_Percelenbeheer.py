@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-st.set_page_config(page_title="Kadasterkaart", layout="wide")
+st.set_page_config(page_title="Percelenbeheer", layout="wide")
 
 st.image("QG.png", width=180)
 
