@@ -66,7 +66,10 @@ with col2:
 
 
 
-st.markdown("## 📅 Komende betalingen & opgebouwde rente")
+st.markdown(
+    "<h3 style='white-space:nowrap;'>📅 Komende betalingen & opgebouwde rente</h3>",
+    unsafe_allow_html=True
+)
 
 betalingen = []
 vandaag = date.today()
@@ -111,12 +114,50 @@ for perceel in percelen:
                 "Opgebouwde rente tot nu (€)": round(opgebouwde_rente, 2)
             })
 
+
 if betalingen:
     df_betalingen = pd.DataFrame(betalingen)
     df_betalingen.reset_index(drop=True, inplace=True)
-    st.dataframe(df_betalingen, use_container_width=True)
+
+    for _, row in df_betalingen.iterrows():
+        st.markdown(
+            f"""
+<div style="background-color:#f8f9fa; padding:20px; border-radius:10px; margin-bottom:20px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.1); display:grid; grid-template-columns: 2fr 1fr; gap:30px; align-items:start;">
+
+  <!-- Linker kolom: labels en waarden netjes in 2 kolommen -->
+  <div style="display:grid; grid-template-columns: 160px auto; row-gap:6px;">
+    <div><b>📍 Perceel:</b></div><div>{row['Perceel']}</div>
+    <div><b>👤 Investeerder:</b></div><div>{row['Investeerder']}</div>
+    <div><b>📄 Rentetype:</b></div><div>{row['Rentetype']}</div>
+    <div><b>📅 Startdatum:</b></div><div style="white-space:nowrap;">{row['Startdatum']}</div>
+    <div><b>➡️ Volgende betaling:</b></div><div style="white-space:nowrap;">{row['Volgende betaling']}</div>
+  </div>
+
+  <!-- Rechter kolom: labels 1 regel, bedrag eronder -->
+  <div style="text-align:right;">
+    <div style="margin-bottom:15px;">
+      <p style="margin:0; font-size:18px; white-space:nowrap;">
+        <b>💶 Bedrag volgende betaling</b>
+      </p>
+      <p style="margin:0; font-size:26px; font-weight:bold;">€ {row['Bedrag volgende betaling (€)']:.2f}</p>
+    </div>
+    <div>
+      <p style="margin:0; font-size:18px; white-space:nowrap;">
+        <b>🏦 Opgebouwde rente</b>
+      </p>
+      <p style="margin:0; font-size:26px; font-weight:bold;">€ {row['Opgebouwde rente tot nu (€)']:.2f}</p>
+    </div>
+  </div>
+
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
 else:
     st.info("Geen rentebetalingen gepland.")
+
+
 
 def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: int, exchange_rate: float) -> dict:
     def safe_float(value):
@@ -343,9 +384,6 @@ if "doorlooptijd" not in df.columns:
 # Converteer naar datetime
 df["doorlooptijd"] = pd.to_datetime(df["doorlooptijd"], errors="coerce")
 
-# 🔎 Debug: toon unieke waarden om te zien waarom sommige geen datetime zijn
-st.write("DEBUG - unieke waarden in doorlooptijd:", df["doorlooptijd"].unique())
-
 # ✅ Zorg dat de kolommen voor opbrengst, kosten en winst altijd bestaan
 for col in ["verwachte_opbrengst_eur", "verwachte_kosten_eur", "verwachte_winst_eur"]:
     if col not in df.columns:
@@ -486,8 +524,109 @@ if resultaten:
     df_view["netto_winst"] = df_view["netto_winst"].apply(lambda x: format_currency(x, "GMD"))
     df_view["netto_winst_eur"] = df_view["netto_winst_eur"].apply(lambda x: format_currency(x, "EUR"))
 
-    # ✅ Tabel tonen
-    st.dataframe(df_view.sort_values(by="netto_winst", ascending=False), use_container_width=True)
+    # ✅ Toon resultaten in tabs
+    st.subheader("📊 Overzicht resultaten")
+
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Financieel overzicht",
+        "🧭 Strategie & Planning",
+        "🗺️ Strategieoverzicht"
+    ])
+
+    # --- Financieel overzicht met subtabs ---
+    with tab1:
+        subtabs_fin = st.tabs(["💰 Verkoop", "📐 Kosten & Inleg", "📊 Winst"])
+
+        with subtabs_fin[0]:
+            st.dataframe(
+                df_view[["locatie", "verkoopprijs", "verkoopprijs_eur",
+                         "verkoopwaarde", "verkoopwaarde_eur"]],
+                use_container_width=True
+            )
+
+        with subtabs_fin[1]:
+            st.dataframe(
+                df_view[["locatie", "totaal_inleg", "totaal_rente"]],
+                use_container_width=True
+            )
+
+        with subtabs_fin[2]:
+            st.dataframe(
+                df_view[["locatie", "netto_winst", "netto_winst_eur"]],
+                use_container_width=True
+            )
+
+    # --- Strategie & Planning overzicht ---
+    with tab2:
+        subtabs = st.tabs(["📈 Opbrengsten", "📉 Kosten", "📜 Overige"])
+
+        with subtabs[0]:
+            st.dataframe(
+                df_view[["locatie", "totaal_opbrengst_gmd", "totaal_opbrengst_eur"]],
+                use_container_width=True
+            )
+
+        with subtabs[1]:
+            st.dataframe(
+                df_view[["locatie", "opbrengst_per_maand_gmd", "opbrengst_per_maand_eur"]],
+                use_container_width=True
+            )
+
+        with subtabs[2]:
+            overige = [c for c in df_view.columns if c not in [
+                "locatie", "verkoopprijs", "verkoopprijs_eur",
+                "verkoopwaarde", "verkoopwaarde_eur",
+                "totaal_inleg", "totaal_rente", "netto_winst", "netto_winst_eur",
+                "totaal_opbrengst_gmd", "totaal_opbrengst_eur",
+                "opbrengst_per_maand_gmd", "opbrengst_per_maand_eur"
+            ]]
+            if overige:
+                st.dataframe(df_view[["locatie"] + overige], use_container_width=True)
+            else:
+                st.info("Geen overige kolommen.")
+
+    # --- Strategieoverzicht ---
+    with tab3:
+        df_strategie = df[df["strategie"].notna()].copy()
+        if not df_strategie.empty:
+            df_strategie["totale_winst_eur"] = df_strategie["verwachte_opbrengst_eur"] - df_strategie["verwachte_kosten_eur"]
+
+            strategie_stats = df_strategie.groupby("strategie").agg({
+                "locatie": "count",
+                "verwachte_opbrengst_eur": "sum",
+                "verwachte_kosten_eur": "sum",
+                "totale_winst_eur": "sum"
+            }).reset_index()
+
+            strategie_stats = strategie_stats.rename(columns={
+                "strategie": "Strategie",
+                "locatie": "Aantal percelen",
+                "verwachte_opbrengst_eur": "Totale opbrengst (EUR)",
+                "verwachte_kosten_eur": "Totale kosten (EUR)",
+                "totale_winst_eur": "Totale winst (EUR)"
+            })
+
+            subtabs_strat = st.tabs(["📈 Opbrengst", "📉 Kosten", "📊 Winst"])
+
+            with subtabs_strat[0]:
+                st.dataframe(
+                    strategie_stats[["Strategie", "Aantal percelen", "Totale opbrengst (EUR)"]],
+                    use_container_width=True
+                )
+
+            with subtabs_strat[1]:
+                st.dataframe(
+                    strategie_stats[["Strategie", "Aantal percelen", "Totale kosten (EUR)"]],
+                    use_container_width=True
+                )
+
+            with subtabs_strat[2]:
+                st.dataframe(
+                    strategie_stats[["Strategie", "Aantal percelen", "Totale winst (EUR)"]],
+                    use_container_width=True
+                )
+        else:
+            st.info("Nog geen strategieën ingevoerd.")
 
     # 👥 Per investeerder inzicht
     if not verkochte_df.empty:
@@ -495,28 +634,32 @@ if resultaten:
 
         for _, perceel in verkochte_df.iterrows():
             locatie = perceel.get("locatie", "Onbekend")
-            st.markdown(f"#### 📍 {locatie}")
-            analyse = analyse_verkocht_perceel(perceel, exchange_rate)
+            with st.expander(f"📍 {locatie} – details", expanded=False):
+                analyse = analyse_verkocht_perceel(perceel, exchange_rate)
 
-            if analyse:
-                for inv in analyse["investeerders"]:
-                    naam = inv.get("naam", "Investeerder")
-                    kapitaalkosten = inv.get("kapitaalkosten", 0)
-                    winstdeling = inv.get("winstdeling", 0)
-                    totaal = kapitaalkosten + winstdeling
+                if analyse:
+                    for inv in analyse["investeerders"]:
+                        naam = inv.get("naam", "Investeerder")
+                        kapitaalkosten = inv.get("kapitaalkosten", 0)
+                        winstdeling = inv.get("winstdeling", 0)
+                        totaal = kapitaalkosten + winstdeling
 
-                    kapitaalkosten_eur = inv.get("kapitaalkosten_eur", 0)
-                    winst_eur = inv.get("winst_eur", 0)
-                    totaal_eur = kapitaalkosten_eur + winst_eur
+                        kapitaalkosten_eur = inv.get("kapitaalkosten_eur", 0)
+                        winst_eur = inv.get("winst_eur", 0)
+                        totaal_eur = kapitaalkosten_eur + winst_eur
 
-                    inleg_eur = inv.get("inleg_eur", 0)
-                    rendement_pct = (winst_eur / inleg_eur * 100) if inleg_eur else 0
-                    winstdeling_pct = inv.get("winstdeling_pct", 0) * 100
+                        inleg_eur = inv.get("inleg_eur", 0)
+                        rendement_pct = (winst_eur / inleg_eur * 100) if inleg_eur else 0
+                        winstdeling_pct = inv.get("winstdeling_pct", 0) * 100
 
-                    st.write(
-                        f"- {naam}: kapitaalkosten {format_currency(kapitaalkosten, 'GMD')}, "
-                        f"winstdeling {format_currency(winstdeling, 'GMD')} "
-                        f"({winstdeling_pct:.0f}%), totaal: {format_currency(totaal, 'GMD')} "
-                        f"({format_currency(totaal_eur, 'EUR')}), netto winst: {format_currency(winst_eur, 'EUR')} "
-                        f"({rendement_pct:.1f}%)"
-                    )
+                        st.write(
+                            f"- {naam}: kapitaalkosten {format_currency(kapitaalkosten, 'GMD')}, "
+                            f"winstdeling {format_currency(winstdeling, 'GMD')} "
+                            f"({winstdeling_pct:.0f}%), totaal: {format_currency(totaal, 'GMD')} "
+                            f"({format_currency(totaal_eur, 'EUR')}), netto winst: {format_currency(winst_eur, 'EUR')} "
+                            f"({rendement_pct:.1f}%)"
+                        )
+
+
+
+
