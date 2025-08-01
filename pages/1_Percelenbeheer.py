@@ -20,6 +20,7 @@ from utils import format_currency
 from auth import login_check
 login_check()
 
+
 def migrate_percelen():
     transformer = Transformer.from_crs("epsg:32629", "epsg:4326", always_xy=True)
     changed = False
@@ -27,7 +28,7 @@ def migrate_percelen():
     for perceel in st.session_state.get("percelen", []):
         investeerders = perceel.get("investeerders")
 
-        # 🧹 Fix investeerders: string óf foutieve lijst van losse letters → Eigen beheer
+        # 🧹 Fix investeerders
         if isinstance(investeerders, str) or (
             isinstance(investeerders, list) and
             len(investeerders) > 1 and
@@ -43,7 +44,7 @@ def migrate_percelen():
             }]
             changed = True
 
-        # 🧹 Fix polygon: detecteer én corrigeer alle polygonen met abs(lat) > 90 of abs(lon) > 180
+        # 🧹 Fix polygon
         polygon = perceel.get("polygon")
         if polygon and isinstance(polygon, list):
             if any(abs(p[0]) > 90 or abs(p[1]) > 180 for p in polygon if isinstance(p, list) and len(p) == 2):
@@ -54,6 +55,11 @@ def migrate_percelen():
                         polygon_converted.append([lat_conv, lon_conv])
                 perceel["polygon"] = polygon_converted
                 changed = True
+
+        # 🧹 Fix eigendomstype
+        if perceel.get("eigendomstype") in ["Customary land", "Freehold land"]:
+            perceel["eigendomstype"] = "Geregistreerd land"
+            changed = True
 
     if changed:
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
@@ -417,19 +423,42 @@ else:
 st.session_state["investeerders_input"] = inv_input_data
 
 # Documenten
+# Documenten
 st.sidebar.markdown("### 📋 Documenten")
-eigendomstype = st.sidebar.selectbox("Eigendomsvorm", ["Customary land", "Freehold land"], index=["Customary land", "Freehold land"].index("Customary land"))
+eigendomstype = st.sidebar.selectbox(
+    "Eigendomsvorm",
+    ["Geregistreerd land"],  # samengevoegd
+    index=0
+)
+st.sidebar.caption("ℹ️ Zowel *Customary land* als *Freehold land* worden in Gambia na registratie gelijk behandeld.")
 
-def get_vereiste_documenten(perceel, fase):
-    return documentvereisten_per_fase.get(fase, []).copy()
+def get_vereiste_documenten(perceel: dict = None, fase: str = None) -> list:
+    """Haal de vereiste documenten op voor een perceel en fase.
+    Als alleen fase wordt meegegeven, gebruik die.
+    """
+    if not fase:
+        fase = perceel.get("dealstage", "Aankoop") if perceel else "Aankoop"
+
+    docs = documentvereisten_per_fase.get(fase, []).copy()
+
+    if perceel:
+        # Extra logica: eigendomstype
+        eigendom = perceel.get("eigendomstype", "")
+        if eigendom == "Geregistreerd land" and fase == "Aankoop":
+            if "Land registration certificate" not in docs:
+                docs.append("Land registration certificate")
+
+        # Extra logica: gesplitst perceel
+        if perceel.get("wordt_gesplitst", False) and fase == "Verkoop":
+            if "Splitsingsplan" not in docs:
+                docs.append("Splitsingsplan")
+
+    return docs
 
 if snel_verkocht:
     docs_sidebar = []
 else:
-    docs_sidebar = get_vereiste_documenten({
-        "eigendomstype": eigendomstype,
-        "wordt_gesplitst": False
-    }, "Aankoop")
+    docs_sidebar = get_vereiste_documenten(fase="Aankoop")
 
 uploads = {}
 uploads_urls = {}
@@ -590,18 +619,14 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         st.warning(f"Percel op index {i} is ongeldig en wordt overgeslagen.")
         continue
 
-    if "uploads" not in perceel or not isinstance(perceel["uploads"], dict):
-        perceel["uploads"] = {}
-
-    if "uploads_urls" not in perceel or not isinstance(perceel["uploads_urls"], dict):
-        perceel["uploads_urls"] = {}
+    perceel.setdefault("uploads", {})
+    perceel.setdefault("uploads_urls", {})
 
     huidige_fase = perceel.get("dealstage", "Aankoop")
-
-    # 📍 Automatisch openen als dit perceel is aangeklikt op de kaart
     is_active = st.session_state.get("active_locatie") == perceel.get("locatie")
 
     with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=is_active):
+        # 📍 Locatie
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
         # 🔍 Zoom-knop
@@ -609,28 +634,26 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
             st.rerun()
 
-        if huidige_fase == "Verkoop":
-            perceel["wordt_gesplitst"] = st.checkbox(
-                "Wordt perceel gesplitst?",
-                value=perceel.get("wordt_gesplitst", False),
-                key=f"wordt_gesplitst_{i}"
-            )
-        else:
-            perceel["wordt_gesplitst"] = False
+        # ✅ Splitsing
+        perceel["wordt_gesplitst"] = st.checkbox(
+            "Wordt perceel gesplitst?",
+            value=perceel.get("wordt_gesplitst", False),
+            key=f"wordt_gesplitst_{i}"
+        ) if huidige_fase == "Verkoop" else False
 
-        perceel["lengte"] = st.number_input(
-            "📏 Lengte (m)", min_value=0, value=int(perceel.get("lengte", 0)), key=f"edit_lengte_{i}"
-        )
-        perceel["breedte"] = st.number_input(
-            "📐 Breedte (m)", min_value=0, value=int(perceel.get("breedte", 0)), key=f"edit_breedte_{i}"
-        )
+        # 📏 Afmetingen
+        perceel["lengte"] = st.number_input("📏 Lengte (m)", min_value=0, value=int(perceel.get("lengte", 0)), key=f"edit_lengte_{i}")
+        perceel["breedte"] = st.number_input("📐 Breedte (m)", min_value=0, value=int(perceel.get("breedte", 0)), key=f"edit_breedte_{i}")
 
+        # ✅ Eigendomstype (samengevoegd)
         perceel["eigendomstype"] = st.selectbox(
             "Eigendomsvorm",
-            ["Customary land", "Freehold land"],
-            index=["Customary land", "Freehold land"].index(perceel.get("eigendomstype", "Customary land")),
+            ["Geregistreerd land"],  # samengevoegd
+            index=0,
             key=f"eigendom_{i}"
         )
+        st.caption("ℹ️ Zowel *Customary land* als *Freehold land* worden in Gambia na registratie gelijk behandeld. "
+                   "Voor dagelijks gebruik maakt dit geen verschil. Juridisch heeft *Freehold* iets meer gewicht bij overheidsprojecten.")
 
         # 👥 Investeerdersbeheer
         st.markdown("#### 👥 Investeerders")
@@ -642,11 +665,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         else:
             for j, inv in enumerate(huidige_investeerders):
                 st.markdown(f"##### Investeerder {j+1}")
-                naam = st.text_input(
-                    f"Naam investeerder {j+1}",
-                    value=inv.get("naam", ""),
-                    key=f"inv_naam_edit_{i}_{j}"
-                )
+                naam = st.text_input(f"Naam investeerder {j+1}", value=inv.get("naam", ""), key=f"inv_naam_edit_{i}_{j}")
                 bedrag_eur = st.number_input(
                     f"Bedrag {j+1} (EUR)",
                     min_value=0.0,
@@ -673,9 +692,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 rentetype = st.selectbox(
                     f"Rentevorm {j+1}",
                     ["maandelijks", "jaarlijks", "bij verkoop"],
-                    index=["maandelijks", "jaarlijks", "bij verkoop"].index(
-                        inv.get("rentetype", "bij verkoop")
-                    ),
+                    index=["maandelijks", "jaarlijks", "bij verkoop"].index(inv.get("rentetype", "bij verkoop")),
                     key=f"inv_type_edit_{i}_{j}"
                 )
 
@@ -687,44 +704,27 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     "winstdeling": winst,
                     "rentetype": rentetype
                 })
+        perceel["investeerders"] = nieuwe_investeerders
 
-            perceel["investeerders"] = nieuwe_investeerders
-
+        # 📋 Documenten
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
         nieuwe_uploads, nieuwe_uploads_urls = {}, {}
         for doc in vereiste_docs:
-            nieuwe_uploads[doc] = st.checkbox(
-                f"{doc} aanwezig?",
-                value=perceel.get("uploads", {}).get(doc, False),
-                key=f"upload_{i}_{doc}"
-            )
-            nieuwe_uploads_urls[doc] = st.text_input(
-                f"Link naar {doc}",
-                value=perceel.get("uploads_urls", {}).get(doc, ""),
-                key=f"upload_url_{i}_{doc}"
-            )
+            nieuwe_uploads[doc] = st.checkbox(f"{doc} aanwezig?", value=perceel.get("uploads", {}).get(doc, False), key=f"upload_{i}_{doc}")
+            nieuwe_uploads_urls[doc] = st.text_input(f"Link naar {doc}", value=perceel.get("uploads_urls", {}).get(doc, ""), key=f"upload_url_{i}_{doc}")
         perceel["uploads"], perceel["uploads_urls"] = nieuwe_uploads, nieuwe_uploads_urls
 
         st.markdown(f"📌 Huidige fase: {huidige_fase}")
 
-        # 💶 Verkoopprijs invoeren bij laatste fase
+        # 💶 Verkoopfase
         if huidige_fase == "Verkoop":
             wisselkoers = st.session_state.get("wisselkoers") or get_exchange_rate_eur_to_gmd()
-            if not wisselkoers:
-                st.warning("⚠️ Wisselkoers niet beschikbaar — EUR/GMD omzetting werkt niet.")
-
-            verkoopprijs_eur = st.number_input(
-                "💶 Verkoopprijs (EUR)",
-                min_value=0.0,
-                value=float(perceel.get("verkoopprijs_eur", 0.0)),
-                format="%.2f",
-                key=f"verkoopprijs_eur_{i}"
-            )
-
-            verkoopprijs_gmd = round(verkoopprijs_eur * wisselkoers) if wisselkoers else 0.0
+            verkoopprijs_eur = st.number_input("💶 Verkoopprijs (EUR)", min_value=0.0,
+                                               value=float(perceel.get("verkoopprijs_eur", 0.0)), format="%.2f",
+                                               key=f"verkoopprijs_eur_{i}")
+            verkoopprijs_gmd = round(verkoopprijs_eur * wisselkoers) if wisselkoers else 0
             st.info(f"≈ {format_currency(verkoopprijs_gmd, 'GMD')} (koers: {wisselkoers:.2f})")
-
             perceel["verkoopprijs_eur"], perceel["verkoopprijs"] = verkoopprijs_eur, verkoopprijs_gmd
 
             if st.button(f"✅ Zet perceel op verkocht", key=f"verkocht_{i}"):
@@ -737,12 +737,8 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 else:
                     st.error("❗ Vul eerst een verkoopprijs in EUR in.")
 
-        # 🚦 Navigatie knoppen voor fases
-        if huidige_fase in PIPELINE_FASEN:
-            fase_index = PIPELINE_FASEN.index(huidige_fase)
-        else:
-            fase_index = len(PIPELINE_FASEN) - 1
-
+        # 🚦 Navigatie fases
+        fase_index = PIPELINE_FASEN.index(huidige_fase) if huidige_fase in PIPELINE_FASEN else len(PIPELINE_FASEN) - 1
         col1, col2 = st.columns(2)
         with col1:
             if fase_index > 0:
@@ -761,14 +757,9 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     st.session_state["skip_load"] = True
                     st.rerun()
 
+        # 🌟 Strategie en planning
         st.markdown("#### 🌟 Strategie en planning")
-
-        strategie_opties = [
-            "Korte termijn verkoop",
-            "Verkavelen en verkopen",
-            "Zelf woningen bouwen",
-            "Zelf bedrijf starten"
-        ]
+        strategie_opties = ["Korte termijn verkoop", "Verkavelen en verkopen", "Zelf woningen bouwen", "Zelf bedrijf starten"]
         perceel["strategie"] = st.selectbox(
             "Strategie",
             strategie_opties,
@@ -776,82 +767,42 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             key=f"strategie_{i}"
         )
 
-        # Extra invoer bij Verkavelen en verkopen
         if perceel["strategie"] == "Verkavelen en verkopen":
-            perceel["aantal_plots"] = st.number_input(
-                "Aantal kavels",
-                min_value=1,
-                value=int(perceel.get("aantal_plots", 1)),
-                key=f"aantal_plots_{i}"
-            )
+            perceel["aantal_plots"] = st.number_input("Aantal kavels", min_value=1, value=int(perceel.get("aantal_plots", 1)), key=f"aantal_plots_{i}")
 
-            wisselkoers = st.session_state.get("wisselkoers") or get_exchange_rate_eur_to_gmd()
-            if not wisselkoers:
-                st.warning("⚠️ Wisselkoers niet beschikbaar — omrekening werkt niet.")
-
-            valuta_keuze = st.radio(
-                "Valuta invoer voor prijs per kavel",
-                ["EUR", "GMD"],
-                horizontal=True,
-                key=f"valuta_kavel_{i}"
-            )
-
+            valuta_keuze = st.radio("Valuta invoer voor prijs per kavel", ["EUR", "GMD"], horizontal=True, key=f"valuta_kavel_{i}")
             if valuta_keuze == "EUR":
-                prijs_eur = st.number_input(
-                    "Prijs per kavel (EUR)",
-                    min_value=0.0,
-                    value=float(perceel.get("prijs_per_plot_eur", 0.0)),
-                    format="%.2f",
-                    key=f"prijs_plot_eur_{i}"
-                )
-                prijs_gmd = round(prijs_eur * wisselkoers) if wisselkoers else 0.0
+                prijs_eur = st.number_input("Prijs per kavel (EUR)", min_value=0.0, value=float(perceel.get("prijs_per_plot_eur", 0.0)), format="%.2f", key=f"prijs_plot_eur_{i}")
+                prijs_gmd = round(prijs_eur * wisselkoers) if wisselkoers else 0
             else:
-                prijs_gmd = st.number_input(
-                    "Prijs per kavel (GMD)",
-                    min_value=0.0,
-                    value=float(perceel.get("prijs_per_plot_gmd", 0.0)),
-                    format="%.0f",
-                    key=f"prijs_plot_gmd_{i}"
-                )
+                prijs_gmd = st.number_input("Prijs per kavel (GMD)", min_value=0.0, value=float(perceel.get("prijs_per_plot_gmd", 0.0)), format="%.0f", key=f"prijs_plot_gmd_{i}")
                 prijs_eur = round(prijs_gmd / wisselkoers, 2) if wisselkoers else 0.0
 
             perceel["prijs_per_plot_eur"], perceel["prijs_per_plot_gmd"] = prijs_eur, prijs_gmd
 
-            perceel["verkoopperiode_maanden"] = st.number_input(
-                "Verkoopperiode (maanden)",
-                min_value=1,
-                value=int(perceel.get("verkoopperiode_maanden", 12)),
-                key=f"periode_{i}"
-            )
+            # Automatische berekening verkoopperiode
+            doorlooptijd = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce")
+            vandaag = date.today()
+            if pd.notnull(doorlooptijd):
+                delta = (doorlooptijd.year - vandaag.year) * 12 + (doorlooptijd.month - vandaag.month)
+                verkoopperiode_maanden = max(delta, 1)
+            else:
+                verkoopperiode_maanden = 12
+            perceel["verkoopperiode_maanden"] = verkoopperiode_maanden
 
             totaal_opbrengst_gmd = perceel["aantal_plots"] * prijs_gmd
             totaal_opbrengst_eur = perceel["aantal_plots"] * prijs_eur
             perceel["totaal_opbrengst_gmd"], perceel["totaal_opbrengst_eur"] = totaal_opbrengst_gmd, totaal_opbrengst_eur
-
-            opbrengst_per_maand_gmd = totaal_opbrengst_gmd / perceel["verkoopperiode_maanden"]
-            opbrengst_per_maand_eur = totaal_opbrengst_eur / perceel["verkoopperiode_maanden"]
-            perceel["opbrengst_per_maand_gmd"], perceel["opbrengst_per_maand_eur"] = opbrengst_per_maand_gmd, opbrengst_per_maand_eur
+            perceel["opbrengst_per_maand_gmd"] = totaal_opbrengst_gmd / verkoopperiode_maanden
+            perceel["opbrengst_per_maand_eur"] = totaal_opbrengst_eur / verkoopperiode_maanden
 
             st.info(f"💶 Totale opbrengst: {format_currency(totaal_opbrengst_eur, 'EUR')} ≈ {format_currency(totaal_opbrengst_gmd, 'GMD')}")
-            st.info(f"📅 Opbrengst per maand: {format_currency(opbrengst_per_maand_eur, 'EUR')} ≈ {format_currency(opbrengst_per_maand_gmd, 'GMD')}")
-
+            st.info(f"📅 Opbrengst per maand: {format_currency(perceel['opbrengst_per_maand_eur'], 'EUR')} ≈ {format_currency(perceel['opbrengst_per_maand_gmd'], 'GMD')}")
         else:
-            # Alleen tonen bij andere strategieën
-            perceel["verwachte_opbrengst_eur"] = st.number_input(
-                "Verwachte opbrengst (EUR)",
-                min_value=0.0,
-                value=float(perceel.get("verwachte_opbrengst_eur", 0.0)),
-                format="%.2f",
-                key=f"verwachte_opbrengst_{i}"
-            )
-
-            perceel["verwachte_kosten_eur"] = st.number_input(
-                "Verwachte kosten (EUR)",
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_eur", 0.0)),
-                format="%.2f",
-                key=f"verwachte_kosten_{i}"
-            )
+            perceel["verwachte_opbrengst_eur"] = st.number_input("Verwachte opbrengst (EUR)", min_value=0.0,
+                                                                  value=float(perceel.get("verwachte_opbrengst_eur", 0.0)), format="%.2f", key=f"verwachte_opbrengst_{i}")
+            perceel["verwachte_kosten_eur"] = st.number_input("Verwachte kosten (EUR)", min_value=0.0,
+                                                               value=float(perceel.get("verwachte_kosten_eur", 0.0)), format="%.2f", key=f"verwachte_kosten_{i}")
 
         perceel["doorlooptijd"] = st.date_input(
             "Verwachte einddatum",
@@ -859,11 +810,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             key=f"doorlooptijd_{i}"
         ).isoformat()
 
-        perceel["status_toelichting"] = st.text_area(
-            "📜 Status / toelichting",
-            value=perceel.get("status_toelichting", ""),
-            key=f"status_toelichting_{i}"
-        )
+        perceel["status_toelichting"] = st.text_area("📜 Status / toelichting", value=perceel.get("status_toelichting", ""), key=f"status_toelichting_{i}")
 
         if is_admin:
             if st.button(f"📂 Opslaan wijzigingen voor {perceel.get('locatie')}", key=f"opslaan_bewerken_{i}"):
@@ -871,7 +818,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
                 st.cache_data.clear()
                 st.success(f"Wijzigingen aan {perceel.get('locatie')} opgeslagen.")
-
             if st.button(f"🔚️ Verwijder perceel", key=f"verwijder_{i}"):
                 save_state()
                 st.session_state["percelen"].pop(i)
