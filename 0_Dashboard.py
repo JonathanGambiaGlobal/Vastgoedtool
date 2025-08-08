@@ -370,6 +370,11 @@ if "percelen" not in st.session_state or not st.session_state["percelen"]:
 percelen = st.session_state["percelen"]
 df = pd.DataFrame(percelen)
 df.columns = df.columns.str.lower()
+df["aankoopdatum"] = pd.to_datetime(df["aankoopdatum"], errors="coerce")
+df["start_verkooptraject"] = pd.to_datetime(df.get("start_verkooptraject", pd.NaT), errors="coerce")
+df["doorlooptijd"] = pd.to_datetime(df["doorlooptijd"], errors="coerce")
+
+
 verkochte_df = df[df["dealstage"].str.lower() == "verkocht"]
 
 if "verkoopprijs" not in df.columns:
@@ -400,35 +405,101 @@ df["verwachte_winst_eur"] = df["verwachte_opbrengst_eur"] - df["verwachte_kosten
 if "strategie" not in df.columns:
     df["strategie"] = None
 
+def verdeel_winst(perceel: dict):
+    """
+    Verdeel de winst van een perceel over de maanden tussen start en einde.
+    Houdt altijd rekening met aankoopprijs in de berekening.
+    """
+    # Startdatum: eerst start verkooptraject, anders aankoopdatum, anders vandaag
+    verkoopstart = (
+        perceel.get("start_verkooptraject")
+        or perceel.get("aankoopdatum")
+        or date.today()
+    )
+    start = pd.to_datetime(verkoopstart, errors="coerce")
+    einde = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce")
+
+    # Opbrengst en kosten bepalen
+    opbrengst = (
+        perceel.get("totaal_opbrengst_eur")
+        or perceel.get("verwachte_opbrengst_eur")
+        or 0
+    )
+    kosten = perceel.get("verwachte_kosten_eur") or 0
+    aankoop = perceel.get("aankoopprijs_eur") or 0
+
+    # Winst ALTIJD herberekenen met aankoopprijs
+    totaal_winst = opbrengst - kosten - aankoop
+
+    # Debug-info
+    start_str = start.date() if pd.notnull(start) else "ongeldig"
+    eind_str = einde.date() if pd.notnull(einde) else "ongeldig"
+    st.write(
+        f"🔍 Percel: {perceel.get('locatie', 'Onbekend')} | "
+        f"Start: {start_str}, Eind: {eind_str}, Winst: €{totaal_winst:.2f}"
+    )
+
+    # Ongeldige datums of geen winst
+    if pd.isnull(start) or pd.isnull(einde) or totaal_winst == 0:
+        st.warning(
+            f"⛔ Percel '{perceel.get('locatie', 'Onbekend')}' wordt overgeslagen "
+            f"wegens ongeldige datums of nul winst."
+        )
+        return pd.DataFrame()
+
+    # Aantal maanden berekenen (minimaal 1)
+    maanden = int(max((einde.year - start.year) * 12 + (einde.month - start.month) + 1, 1))
+    maand_winst = totaal_winst / maanden
+
+    # Dataframe opbouwen
+    rows = [
+        {"jaar": datum.year, "maand": datum.month, "winst_eur": maand_winst}
+        for datum in (start + relativedelta(months=i) for i in range(maanden))
+    ]
+
+    return pd.DataFrame(rows)
 
 # 📅 Totale verwachte winst per jaar
 st.subheader("📆 Totale verwachte winst per jaar")
-
-# Verrijk met verkavelingsopbrengsten
-if "totaal_opbrengst_eur" in df.columns:
-    df["verwachte_opbrengst_eur"] = df["verwachte_opbrengst_eur"] + df["totaal_opbrengst_eur"].fillna(0)
-
-if "opbrengst_per_maand_eur" in df.columns and "verkoopperiode_maanden" in df.columns:
-    df["verwachte_winst_eur"] = df["verwachte_opbrengst_eur"] - df["verwachte_kosten_eur"]
 
 # Filter alleen rijen met een geldige einddatum
 df_planning = df[pd.to_datetime(df["doorlooptijd"], errors="coerce").notnull()].copy()
 df_planning["doorlooptijd"] = pd.to_datetime(df_planning["doorlooptijd"], errors="coerce")
 
 if not df_planning.empty:
-    df_planning["jaar"] = df_planning["doorlooptijd"].dt.year
-    df_planning["totale_winst_eur"] = df_planning["verwachte_opbrengst_eur"] - df_planning["verwachte_kosten_eur"]
+    alle_winst = []
+    for _, perceel in df_planning.iterrows():
+        deel_df = verdeel_winst(perceel)
+        if not deel_df.empty:
+            alle_winst.append(deel_df)
 
-    jaartotalen = df_planning.groupby("jaar")["totale_winst_eur"].sum().reset_index()
+    if alle_winst:
+        df_winst = pd.concat(alle_winst)
 
-    st.dataframe(
-        jaartotalen.rename(
-            columns={"jaar": "Jaar", "totale_winst_eur": "Totale verwachte winst (EUR)"}
-        ),
-        use_container_width=True
-    )
+        # Jaaroverzicht
+        jaartotalen = df_winst.groupby("jaar")["winst_eur"].sum().reset_index()
+        st.dataframe(
+            jaartotalen.rename(columns={
+                "jaar": "Jaar",
+                "winst_eur": "Totale verwachte winst (EUR)"
+            }),
+            use_container_width=True
+        )
+
+        # 📊 Maandoverzicht als grafiek
+        maandtotalen = df_winst.groupby(["jaar", "maand"])["winst_eur"].sum().reset_index()
+        maandtotalen["datum"] = pd.to_datetime(
+            maandtotalen["jaar"].astype(str) + "-" + maandtotalen["maand"].astype(str) + "-01"
+        )
+
+        st.subheader("📆 Verwachte winst per maand")
+        st.line_chart(maandtotalen.set_index("datum")["winst_eur"])
+
+    else:
+        st.info("Geen geldige verdeling mogelijk.")
 else:
     st.info("Nog geen geldige doorlooptijden ingevoerd.")
+
 
 # 📌 Overzicht per strategie
 st.subheader("🧭 Strategieoverzicht")
@@ -659,6 +730,8 @@ if resultaten:
                             f"({format_currency(totaal_eur, 'EUR')}), netto winst: {format_currency(winst_eur, 'EUR')} "
                             f"({rendement_pct:.1f}%)"
                         )
+
+
 
 
 
