@@ -244,30 +244,22 @@ def aanvul_regios(df: pd.DataFrame, regio_lijst: list) -> pd.DataFrame:
         df = pd.concat([df, pd.DataFrame(aanvullingen)], ignore_index=True)
     return df
 
-# 🔁 Pipeline-rendering per perceel
+# 🔁 Pipeline-rendering per perceel (3 fasen versie)
 def render_pipeline(huidige_fase: str, fase_status: dict = None) -> str:
-    PIPELINE_FASEN = [
-        "Oriëntatie",
-        "In onderhandeling",
-        "Te kopen",
-        "Aangekocht",
-        "Geregistreerd",
-        "In beheer",
-        "In verkoop",
-        "Verkocht"
-    ]
-    
+    PIPELINE_FASEN = ["Aankoop", "Omzetting / bewerking", "Verkoop"]
+
     symbols = []
     actief_bereikt = False
     for fase in PIPELINE_FASEN:
         if fase_status and fase_status.get(fase):
-            symbool = "✅"
+            symbool = "✅"   # afgerond
         elif not actief_bereikt and fase == huidige_fase:
-            symbool = "🔵"
+            symbool = "🔵"   # huidige fase
             actief_bereikt = True
         else:
-            symbool = "⚪"
+            symbool = "⚪"   # nog niet bereikt
         symbols.append(f"{symbool} {fase}")
+
     return " → ".join(symbols)
 
 def format_currency(amount, currency="EUR") -> str:
@@ -276,3 +268,5 @@ def format_currency(amount, currency="EUR") -> str:
     elif currency == "GMD":
         return f"{amount:,.0f} GMD".replace(",", ".")
     return str(amount)
+
+
