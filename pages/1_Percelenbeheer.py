@@ -33,10 +33,39 @@ def migrate_percelen():
     transformer = Transformer.from_crs("epsg:32629", "epsg:4326", always_xy=True)
     changed = False
 
-    for perceel in st.session_state.get("percelen", []):
-        investeerders = perceel.get("investeerders")
+    # Oude (8/4) fasen → nieuwe 3 fasen
+    old_to_new = {
+        "Oriëntatie": "Aankoop",
+        "In onderhandeling": "Aankoop",
+        "Te kopen": "Aankoop",
+        "Aangekocht": "Aankoop",
+        "Geregistreerd": "Omzetting / bewerking",
+        "In beheer": "Omzetting / bewerking",
+        "In verkoop": "Verkoop",
+        # Als je eerder 4 fasen had met "Verkocht" en je wilt die behouden:
+        # "Verkocht": "Verkoop",  # of laat weg als je 'Verkocht' los wilt houden
+    }
 
-        # 🧹 Fix investeerders
+    for perceel in st.session_state.get("percelen", []):
+        # ✅ Zorg dat dealstage altijd bestaat en map oude waarden
+        ds = perceel.get("dealstage")
+        if not ds:
+            perceel["dealstage"] = "Aankoop"
+            changed = True
+        elif ds in old_to_new:
+            perceel["dealstage"] = old_to_new[ds]
+            changed = True
+
+        # ✅ Zorg dat uploads-dicts bestaan
+        if "uploads" not in perceel:
+            perceel["uploads"] = {}
+            changed = True
+        if "uploads_urls" not in perceel:
+            perceel["uploads_urls"] = {}
+            changed = True
+
+        # 🧹 Fix investeerders (oude, kapotte structuur → 1 entry 'Eigen beheer')
+        investeerders = perceel.get("investeerders")
         if isinstance(investeerders, str) or (
             isinstance(investeerders, list)
             and len(investeerders) > 1
@@ -52,10 +81,14 @@ def migrate_percelen():
             }]
             changed = True
 
-        # 🧹 Fix polygon
+        # 🧹 Fix polygon (coördinaat-orde omdraaien indien nodig)
         polygon = perceel.get("polygon")
         if polygon and isinstance(polygon, list):
-            if any(abs(p[0]) > 90 or abs(p[1]) > 180 for p in polygon if isinstance(p, list) and len(p) == 2):
+            # Als waarden buiten lat/lon bereik vallen, is het waarschijnlijk UTM/XY
+            if any(
+                isinstance(p, list) and len(p) == 2 and (abs(p[0]) > 90 or abs(p[1]) > 180)
+                for p in polygon
+            ):
                 polygon_converted = []
                 for pt in polygon:
                     if isinstance(pt, list) and len(pt) == 2:
@@ -69,10 +102,10 @@ def migrate_percelen():
             perceel["eigendomstype"] = "Geregistreerd land"
             changed = True
 
-        # 🧹 Bereken of corrigeer verwachte winst
-        opbrengst = perceel.get("verwachte_opbrengst_eur", 0)
-        kosten = perceel.get("verwachte_kosten_eur", 0)
-        aankoop = perceel.get("aankoopprijs_eur", 0)
+        # 🧮 (Her)bereken verwachte winst
+        opbrengst = perceel.get("verwachte_opbrengst_eur", 0) or 0
+        kosten = perceel.get("verwachte_kosten_eur", 0) or 0
+        aankoop = perceel.get("aankoopprijs_eur", 0) or 0
 
         berekende_winst = opbrengst - kosten - aankoop
         huidige_winst = perceel.get("verwachte_winst_eur")
@@ -84,10 +117,9 @@ def migrate_percelen():
     if changed:
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.cache_data.clear()
-        st.success("✅ Migratie uitgevoerd: records aangevuld met verwachte winst en oude velden gecorrigeerd.")
+        st.success("✅ Migratie uitgevoerd: fasen gemapt, records opgeschoond en winst bijgewerkt.")
         st.session_state["skip_load"] = True
         st.rerun()
-
 
 is_admin = st.session_state.get("rol") == "admin"
 
@@ -227,7 +259,7 @@ if "percelen" not in st.session_state or st.session_state.get("skip_load") != Tr
     # ⭐ Vul ontbrekende velden aan voor backwards compatibility
     for perceel in st.session_state["percelen"]:
         perceel.setdefault("wordt_gesplitst", False)
-        perceel.setdefault("dealstage", "Oriëntatie")
+        perceel.setdefault("dealstage", "Aankoop")
 
 # Sidebar invoer velden voor nieuw perceel
 st.sidebar.header("📝 Perceelinvoer")
@@ -649,19 +681,78 @@ if st.button("↩ Undo laatste wijziging"):
     # 🔁 Verwijder skip_load zodat laden weer werkt na undo
     if "skip_load" in st.session_state:
         del st.session_state["skip_load"]
-    
-for i, perceel in enumerate(st.session_state["percelen"]):
+ 
+   
+# --- 📍 Perceel selectie: strakke uitlijning in rijen ---
+percelen = st.session_state.get("percelen", [])
+locaties = [p.get("locatie", f"Perceel {i+1}") for i, p in enumerate(percelen)]
+
+if "active_locatie" not in st.session_state and locaties:
+    st.session_state["active_locatie"] = locaties[0]
+
+st.markdown("""
+<style>
+.selector .row { margin-bottom: .5rem; }
+.selector .stButton>button {
+  width: 100%;
+  border-radius: 9999px;
+  border: 1px solid #E5E7EB;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  background: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.selector .stButton>button:hover { border-color: #00b39420; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+.selector .active>button { background: #E8FFF7; border-color: #00b39466; }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("### 📍 Kies perceel")
+st.markdown("<div class='selector'>", unsafe_allow_html=True)
+
+def chunk(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
+
+per_row = 3   # zet op 4 als je 4 kolommen wilt
+for rij in chunk(locaties, per_row):
+    cols = st.columns(per_row)
+    st.markdown("<div class='row'></div>", unsafe_allow_html=True)
+    for col, loc in zip(cols, rij):
+        is_active = (st.session_state.get("active_locatie") == loc)
+        with col:
+            if is_active:
+                st.markdown("<div class='active'>", unsafe_allow_html=True)
+            label = f"✅ {loc}" if is_active else f"📍 {loc}"
+            if st.button(label, key=f"btn_{loc}", use_container_width=True):
+                st.session_state["active_locatie"] = loc
+                st.rerun()
+            if is_active:
+                st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+keuze = st.session_state.get("active_locatie")
+
+# --- Toon alleen het geselecteerde perceel ---
+for i, perceel in enumerate(percelen):
     if not isinstance(perceel, dict):
         st.warning(f"Percel op index {i} is ongeldig en wordt overgeslagen.")
         continue
 
+    # Zorg dat deze keys altijd bestaan
     perceel.setdefault("uploads", {})
     perceel.setdefault("uploads_urls", {})
 
-    huidige_fase = perceel.get("dealstage", "Aankoop")
-    is_active = st.session_state.get("active_locatie") == perceel.get("locatie")
+    # Alleen het gekozen perceel tonen
+    if perceel.get("locatie") != keuze:
+        continue
 
-    with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=is_active):
+    huidige_fase = perceel.get("dealstage", "Aankoop")
+
+    with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=True):
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
         if st.button(f"🔍 Zoom in op {perceel.get('locatie')}", key=f"zoom_knop_{i}"):
@@ -757,21 +848,18 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
         for doc in vereiste_docs:
             col1, col2 = st.columns([1, 3])
-
             with col1:
                 nieuwe_uploads[doc] = st.checkbox(
                     f"{doc} aanwezig?",
                     value=perceel.get("uploads", {}).get(doc, False),
                     key=f"upload_{i}_{doc}"
                 )
-
             with col2:
                 nieuwe_uploads_urls[doc] = st.text_input(
                     f"Link naar {doc}",
                     value=perceel.get("uploads_urls", {}).get(doc, ""),
                     key=f"upload_url_{i}_{doc}"
                 )
-
                 if nieuwe_uploads[doc] and nieuwe_uploads_urls[doc]:
                     st.markdown(
                         f"<a href='{nieuwe_uploads_urls[doc]}' target='_blank'>📄 Open {doc}</a>",
@@ -781,11 +869,9 @@ for i, perceel in enumerate(st.session_state["percelen"]):
         perceel["uploads"] = nieuwe_uploads
         perceel["uploads_urls"] = nieuwe_uploads_urls
 
-        # 📌 Huidige fase
-        st.markdown(f"📌 Huidige fase: **{huidige_fase}**")
-
-        # ➕ Navigatie tussen fases
-        PIPELINE_FASEN = ["Aankoop", "Omzetting / bewerking", "Verkoop", "Verkocht"]
+        # 📌 Huidige fase en navigatie
+        st.markdown(render_pipeline(huidige_fase))
+        PIPELINE_FASEN = ["Aankoop", "Omzetting / bewerking", "Verkoop"]
         fase_index = PIPELINE_FASEN.index(huidige_fase) if huidige_fase in PIPELINE_FASEN else 0
 
         col_f1, col_f2 = st.columns(2)
@@ -807,7 +893,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     st.session_state["skip_load"] = True
                     st.rerun()
 
-        # Strategie en planning
+        # 🌟 Strategie en planning
         st.markdown("#### 🌟 Strategie en planning")
         strategie_opties = ["Korte termijn verkoop", "Verkavelen en verkopen", "Zelf woningen bouwen", "Zelf bedrijf starten"]
         perceel["strategie"] = st.selectbox(
@@ -816,7 +902,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
             index=strategie_opties.index(perceel.get("strategie", "Korte termijn verkoop")),
             key=f"strategie_{i}"
         )
-       
+
         if perceel["strategie"] == "Verkavelen en verkopen":
             perceel["start_verkooptraject"] = st.date_input(
                 "🗓️ Start verkooptraject",
@@ -841,8 +927,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                     format="%.2f",
                     key=f"prijs_plot_eur_{i}"
                 )
-
-
                 prijs_gmd = round(prijs_eur * wisselkoers) if wisselkoers else 0
             else:
                 prijs_gmd = st.number_input(
@@ -856,7 +940,7 @@ for i, perceel in enumerate(st.session_state["percelen"]):
 
             perceel["prijs_per_plot_eur"], perceel["prijs_per_plot_gmd"] = prijs_eur, prijs_gmd
 
-            # Automatische berekening verkoopperiode
+            # Verkoopperiode berekenen
             doorlooptijd = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce")
             vandaag = date.today()
             if pd.notnull(doorlooptijd):
@@ -916,7 +1000,6 @@ for i, perceel in enumerate(st.session_state["percelen"]):
                 st.session_state["rerun_trigger"] = True
         else:
             st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
-
 
 
 # Coördinaten invoer (UTM of Lat/Lon)
@@ -1062,4 +1145,3 @@ if is_admin and toevoegen:
         st.session_state["skip_load"] = False
         st.cache_data.clear()
         st.rerun()
-
