@@ -10,3 +10,5 @@ gspread
 geopy
 streamlit-folium
 folium
+groq>=0.9
+
