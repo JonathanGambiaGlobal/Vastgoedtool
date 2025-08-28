@@ -5,8 +5,9 @@ st.set_page_config(page_title="Percelenbeheer", layout="wide")
 
 st.image("QG.png", width=180)
 
-
 import pandas as pd
+from groq import Groq
+from utils import get_ai_config
 import json
 from streamlit_folium import st_folium
 import folium 
@@ -20,6 +21,58 @@ from utils import format_currency
 from auth import login_check
 login_check()
 
+_cfg = get_ai_config()
+MODEL_PRIMARY  = _cfg.get("primary_model", "llama-3.3-70b-versatile")
+MODEL_FALLBACK = _cfg.get("fallback_model", "llama-3.1-8b-instant")
+TEMPERATURE    = float(_cfg.get("temperature", 0.2))
+TOP_P          = float(_cfg.get("top_p", 0.9))
+
+_api_key = st.secrets.get("GROQ_API_KEY")
+if not _api_key:
+    st.error("⚠️ GROQ_API_KEY ontbreekt in .streamlit/secrets.toml")
+    st.stop()
+
+_groq = Groq(api_key=_api_key)
+
+def groq_chat(messages, *, model: str | None = None) -> str:
+    """Robuuste helper met automatische fallback naar kleiner model."""
+    try:
+        res = _groq.chat.completions.create(
+            model=model or MODEL_PRIMARY,
+            messages=messages,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+        )
+        return (res.choices[0].message.content or "").strip()
+    except Exception:
+        # fallback bij drukte/rate-limit
+        res = _groq.chat.completions.create(
+            model=MODEL_FALLBACK,
+            messages=messages,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+        )
+        return (res.choices[0].message.content or "").strip()
+# ============================================================================
+
+# ===== Query parameter helpers =====
+def get_qp():
+    try:
+        from urllib.parse import urlparse, parse_qs
+        # Streamlit levert via st.query_params in nieuwe versies ook direct een dict:
+        qp = dict(st.query_params)
+        # fallback: lege dict als niets
+        return {k: (v[0] if isinstance(v, list) else v) for k,v in qp.items()}
+    except Exception:
+        return {}
+
+def set_qp(**kwargs):
+    try:
+        st.query_params.clear()
+        for k,v in kwargs.items():
+            st.query_params[k] = str(v)
+    except Exception:
+        pass
 
 def format_date_eu(date_str):
     try:
@@ -31,7 +84,7 @@ def format_date_eu(date_str):
     return date_str or "n.v.t."
 
 def migrate_percelen():
-    transformer = Transformer.from_crs("epsg:32629", "epsg:4326", always_xy=True)
+    transformer = Transformer.from_crs("epsg:32628", "epsg:4326", always_xy=True)
     changed = False
 
     # Oude (8/4) fasen → nieuwe 3 fasen
@@ -347,8 +400,7 @@ else:
     verkoopprijs = 0
     verkoopprijs_eur = 0.0
 
-
-# 🎯 Nieuw: Strategie en planning
+# 🎯 Strategie en planning (sidebar)
 st.sidebar.markdown("### 🧭 Strategie en planning")
 strategieopties = [
     "Korte termijn verkoop",
@@ -360,14 +412,30 @@ strategieopties = [
 
 strategie = st.sidebar.selectbox("Doel met dit perceel", strategieopties)
 
-if strategie == "Verkavelen en verkopen":
-    # Nieuw veld: start verkooptraject
-    start_traject = st.sidebar.date_input(
-        "🗓️ Start verkooptraject",
-        value=date.today(),
-        key="start_verkooptraject_sidebar"
-    )
+# 📅 Start verkooptraject (altijd tonen)
+start_traject = st.sidebar.date_input(
+    "🗓️ Start verkooptraject",
+    value=date.today(),
+    key="start_verkooptraject_sidebar"
+)
 
+# 📅 Einddatum kiezen (zelfde logica als rechts)
+doorlooptijd_datum = st.sidebar.date_input(
+    "Verwachte einddatum",
+    value=date.today(),
+    key="doorlooptijd_sidebar"
+)
+
+# 🧮 Bereken looptijd automatisch in maanden
+verkoopperiode_maanden = max(
+    (doorlooptijd_datum.year - start_traject.year) * 12
+    + (doorlooptijd_datum.month - start_traject.month),
+    1
+)
+st.session_state["periode_sidebar"] = verkoopperiode_maanden
+
+# 🏗️ Specifiek voor verkavelen en verkopen
+if strategie == "Verkavelen en verkopen":
     aantal_kavels = st.sidebar.number_input(
         "Aantal kavels",
         min_value=1,
@@ -401,18 +469,11 @@ if strategie == "Verkavelen en verkopen":
         )
         prijs_per_kavel_eur = round(prijs_per_kavel_gmd / wisselkoers, 2) if wisselkoers else 0.0
 
-    verkoopperiode_maanden = st.sidebar.number_input(
-        "Verkoopperiode (maanden)",
-        min_value=1,
-        value=12,
-        key="periode_sidebar"
-    )
-
-    # Berekeningen
+    # ✅ Berekeningen opbrengst
     totaal_opbrengst_gmd = aantal_kavels * prijs_per_kavel_gmd
     totaal_opbrengst_eur = aantal_kavels * prijs_per_kavel_eur
-    opbrengst_per_maand_gmd = totaal_opbrengst_gmd / verkoopperiode_maanden if verkoopperiode_maanden else 0
-    opbrengst_per_maand_eur = totaal_opbrengst_eur / verkoopperiode_maanden if verkoopperiode_maanden else 0
+    opbrengst_per_maand_gmd = totaal_opbrengst_gmd / verkoopperiode_maanden
+    opbrengst_per_maand_eur = totaal_opbrengst_eur / verkoopperiode_maanden
 
     st.sidebar.info(
         f"💶 Totale opbrengst: {format_currency(totaal_opbrengst_eur, 'EUR')} "
@@ -436,14 +497,37 @@ else:
 
 
 # Deze velden blijven altijd
-verwachte_opbrengst = st.sidebar.number_input("Verwachte opbrengst (EUR)", min_value=0.0, format="%.2f", value=0.0)
-kosten_qg = st.sidebar.number_input("Verwachte kosten Quadraat Global (EUR)", min_value=0.0, format="%.2f", value=0.0)
-kosten_extern = st.sidebar.number_input("Verwachte kosten Externen (EUR)", min_value=0.0, format="%.2f", value=0.0)
+# ── Verwachte opbrengst + kosten (sidebar) ─────────────────────────
+if strategie == "Verkavelen en verkopen":
+    verwachte_opbrengst = float(totaal_opbrengst_eur or 0.0)
+    st.sidebar.info(
+        f"Verwachte opbrengst (automatisch): {format_currency(verwachte_opbrengst, 'EUR')}"
+    )
+else:
+    verwachte_opbrengst = st.sidebar.number_input(
+        "Verwachte opbrengst (EUR)",
+        min_value=0.0, format="%.2f", value=0.0,
+        key="sb_verwachte_opbrengst",   # ⬅️ unieke key
+    )
+
+kosten_qg = st.sidebar.number_input(
+    "Verwachte kosten Quadraat Global (EUR)",
+    min_value=0.0, format="%.2f", value=0.0,
+    key="sb_kosten_qg",                 # ⬅️ unieke key
+)
+kosten_extern = st.sidebar.number_input(
+    "Verwachte kosten Externen (EUR)",
+    min_value=0.0, format="%.2f", value=0.0,
+    key="sb_kosten_extern",             # ⬅️ unieke key
+)
 verwachte_kosten = kosten_qg + kosten_extern
 st.sidebar.info(f"Totaal verwachte kosten: € {verwachte_kosten:,.2f}")
 
-doorlooptijd_datum = st.sidebar.date_input("Verwachte einddatum", value=date.today())
-status_toelichting = st.sidebar.text_area("Status / toelichting", value="")
+status_toelichting = st.sidebar.text_area(
+    "Status / toelichting",
+    value="",
+    key="sb_status_toelichting",        # ⬅️ unieke key
+)
 
 
 # 👥 Investeerders
@@ -749,6 +833,25 @@ st.markdown("</div>", unsafe_allow_html=True)
 
 keuze = st.session_state.get("active_locatie")
 
+# ===== Centrale afhandeling van ?del= en ?delask= =====
+_qp = get_qp()
+if "del" in _qp:
+    try:
+        idx = int(_qp["del"])
+        if 0 <= idx < len(st.session_state["percelen"]):
+            save_state()
+            st.session_state["percelen"].pop(idx)
+            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+            st.success("Perceel verwijderd.")
+    except Exception:
+        st.error("Verwijderen mislukt.")
+    # altijd query schoonmaken
+    set_qp()
+    st.rerun()
+elif "delask" in _qp:
+    # alleen laten staan; de loop toont dan de confirm‑UI bij het juiste perceel
+    pass
+
 # --- Toon alleen het geselecteerde perceel ---
 for i, perceel in enumerate(percelen):
     if not isinstance(perceel, dict):
@@ -766,6 +869,9 @@ for i, perceel in enumerate(percelen):
     huidige_fase = perceel.get("dealstage", "Aankoop")
 
     with st.expander(f"📍 {perceel.get('locatie', f'Perceel {i+1}')}", expanded=True):
+        # ─────────────────────────────────────────────────────────────
+        # Basis
+        # ─────────────────────────────────────────────────────────────
         st.text_input("Locatie", value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
 
         # 👁️ Zoom-knop
@@ -773,12 +879,11 @@ for i, perceel in enumerate(percelen):
             st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
             st.rerun()
 
-        # 🏷️ Snelle indicatie financieringsvorm
-        _heeft_extern = bool(perceel.get("investeerders"))
-        if not _heeft_extern:
-            st.info("ℹ️ Dit perceel staat in **eigen beheer** (geen externe investeerders).")
-        else:
+        # 🏷️ Financieringsvorm indicatie
+        if perceel.get("investeerders"):
             st.warning("ℹ️ Dit perceel heeft **externe investeerders**.")
+        else:
+            st.info("ℹ️ Dit perceel staat in **eigen beheer** (geen externe investeerders).")
 
         # Alleen bij fase Verkoop zichtbaar; anders geforceerd False
         perceel["wordt_gesplitst"] = (
@@ -792,7 +897,7 @@ for i, perceel in enumerate(percelen):
         )
 
         # Afmetingen
-        perceel["lengte"] = st.number_input("📏 Lengte (m)", min_value=0, value=int(perceel.get("lengte", 0)), key=f"edit_lengte_{i}")
+        perceel["lengte"]  = st.number_input("📏 Lengte (m)",  min_value=0, value=int(perceel.get("lengte", 0)),  key=f"edit_lengte_{i}")
         perceel["breedte"] = st.number_input("📐 Breedte (m)", min_value=0, value=int(perceel.get("breedte", 0)), key=f"edit_breedte_{i}")
 
         # Eigendomstype
@@ -800,15 +905,17 @@ for i, perceel in enumerate(percelen):
         st.caption("ℹ️ Zowel *Customary land* als *Freehold land* worden in Gambia na registratie gelijk behandeld.")
 
         # 🗓️ Aankoopdatum
-        aankoopdatum_raw = perceel.get("aankoopdatum")
         try:
-            aankoopdatum_dt = pd.to_datetime(aankoopdatum_raw, errors="coerce")
-            aankoopdatum_value = aankoopdatum_dt.date() if pd.notnull(aankoopdatum_dt) else date.today()
+            aankoopdatum_value = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce").date()
+            if not pd.notnull(aankoopdatum_value):
+                aankoopdatum_value = date.today()
         except Exception:
             aankoopdatum_value = date.today()
-        perceel["aankoopdatum"] = st.date_input("🗕️ Aankoopdatum", value=aankoopdatum_value, key=f"aankoopdatum_{i}").isoformat()
+        perceel["aankoopdatum"] = st.date_input("🗓️ Aankoopdatum", value=aankoopdatum_value, key=f"aankoopdatum_{i}").isoformat()
 
-        # 👥 Investeerdersbeheer
+        # ─────────────────────────────────────────────────────────────
+        # Investeerders
+        # ─────────────────────────────────────────────────────────────
         st.markdown("#### 👥 Investeerders")
         huidige_investeerders = perceel.get("investeerders", []) or []
         nieuwe_investeerders = []
@@ -834,8 +941,7 @@ for i, perceel in enumerate(percelen):
                         step=0.1,
                         value=float(inv.get("rente", 0.0)) * 100,
                         key=f"inv_rente_edit_{i}_{j}",
-                    )
-                    / 100
+                    ) / 100
                 )
                 winst = (
                     st.number_input(
@@ -845,8 +951,7 @@ for i, perceel in enumerate(percelen):
                         step=1.0,
                         value=float(inv.get("winstdeling", 0.0)) * 100,
                         key=f"inv_winst_edit_{i}_{j}",
-                    )
-                    / 100
+                    ) / 100
                 )
                 rentetype = st.selectbox(
                     f"Rentevorm {j+1}",
@@ -868,7 +973,9 @@ for i, perceel in enumerate(percelen):
                 )
         perceel["investeerders"] = nieuwe_investeerders
 
-        # 📋 Documenten
+        # ─────────────────────────────────────────────────────────────
+        # Documenten
+        # ─────────────────────────────────────────────────────────────
         st.markdown("#### 📋 Documenten")
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
         nieuwe_uploads, nieuwe_uploads_urls = {}, {}
@@ -892,7 +999,9 @@ for i, perceel in enumerate(percelen):
         perceel["uploads"] = nieuwe_uploads
         perceel["uploads_urls"] = nieuwe_uploads_urls
 
-        # 📌 Huidige fase + navigatie
+        # ─────────────────────────────────────────────────────────────
+        # Pipeline + navigatie
+        # ─────────────────────────────────────────────────────────────
         st.markdown(render_pipeline(huidige_fase))
         _PIPELINE_FASEN = ["Aankoop", "Omzetting / bewerking", "Verkoop", "Verkocht"]
         fase_index = _PIPELINE_FASEN.index(huidige_fase) if huidige_fase in _PIPELINE_FASEN else 0
@@ -916,12 +1025,15 @@ for i, perceel in enumerate(percelen):
                     st.session_state["skip_load"] = True
                     st.rerun()
 
-        # 🟩 Extra invoer wanneer fase = Verkocht
+        # ─────────────────────────────────────────────────────────────
+        # Verkoopgegevens (gerealiseerd) — alleen bij fase Verkocht
+        # ─────────────────────────────────────────────────────────────
         if huidige_fase == "Verkocht":
             st.markdown("#### 💰 Verkoopgegevens (gerealiseerd)")
             try:
-                verkoopdt = pd.to_datetime(perceel.get("verkoopdatum"), errors="coerce")
-                verkoop_value = verkoopdt.date() if pd.notnull(verkoopdt) else date.today()
+                verkoop_value = pd.to_datetime(perceel.get("verkoopdatum"), errors="coerce").date()
+                if not pd.notnull(verkoop_value):
+                    verkoop_value = date.today()
             except Exception:
                 verkoop_value = date.today()
             perceel["verkoopdatum"] = st.date_input("🗓️ Verkoopdatum", value=verkoop_value, key=f"verkoopdatum_{i}").isoformat()
@@ -956,7 +1068,9 @@ for i, perceel in enumerate(percelen):
             else:
                 st.info("✅ Vastgelegd (koers onbekend): bedragen niet omgerekend.")
 
-        # 🌟 Strategie en planning
+        # ─────────────────────────────────────────────────────────────
+        # Strategie & planning
+        # ─────────────────────────────────────────────────────────────
         st.markdown("#### 🌟 Strategie en planning")
         strategie_opties = ["Korte termijn verkoop", "Verkavelen en verkopen", "Zelf woningen bouwen", "Zelf bedrijf starten"]
         perceel["strategie"] = st.selectbox(
@@ -966,20 +1080,25 @@ for i, perceel in enumerate(percelen):
             key=f"strategie_{i}",
         )
 
-        if perceel["strategie"] == "Verkavelen en verkopen":
-            perceel["start_verkooptraject"] = st.date_input(
-                "🗓️ Start verkooptraject",
-                value=pd.to_datetime(perceel.get("start_verkooptraject"), errors="coerce").date()
-                if perceel.get("start_verkooptraject")
-                else date.today(),
-                key=f"start_verkooptraject_{i}",
-            ).isoformat()
+        _k = perceel.get("wisselkoers") or locals().get("wisselkoers", None)
+        aankoop_eur = float(perceel.get("aankoopprijs_eur", 0) or 0)
 
+        if perceel["strategie"] == "Verkavelen en verkopen":
+            # Start verkooptraject
+            try:
+                start_val = pd.to_datetime(perceel.get("start_verkooptraject"), errors="coerce").date()
+                if not pd.notnull(start_val):
+                    start_val = date.today()
+            except Exception:
+                start_val = date.today()
+            perceel["start_verkooptraject"] = st.date_input("🗓️ Start verkooptraject", value=start_val, key=f"start_verkooptraject_{i}").isoformat()
+
+            # Aantal kavels + prijs per kavel (EUR of GMD)
             perceel["aantal_plots"] = st.number_input(
                 "Aantal kavels", min_value=1, value=int(perceel.get("aantal_plots", 1)), key=f"aantal_plots_{i}"
             )
+            valuta_keuze = st.radio("Valuta prijs per kavel", ["EUR", "GMD"], horizontal=True, key=f"valuta_kavel_{i}")
 
-            valuta_keuze = st.radio("Valuta invoer voor prijs per kavel", ["EUR", "GMD"], horizontal=True, key=f"valuta_kavel_{i}")
             if valuta_keuze == "EUR":
                 prijs_eur = st.number_input(
                     "Prijs per kavel (EUR)",
@@ -988,7 +1107,7 @@ for i, perceel in enumerate(percelen):
                     format="%.2f",
                     key=f"prijs_plot_eur_{i}",
                 )
-                prijs_gmd = round(prijs_eur * (locals().get("wisselkoers") or perceel.get("wisselkoers") or 0))
+                prijs_gmd = round(prijs_eur * (_k or 0))
             else:
                 prijs_gmd = st.number_input(
                     "Prijs per kavel (GMD)",
@@ -997,29 +1116,65 @@ for i, perceel in enumerate(percelen):
                     format="%.0f",
                     key=f"prijs_plot_gmd_{i}",
                 )
-                _k = (locals().get("wisselkoers") or perceel.get("wisselkoers") or 0) or None
                 prijs_eur = round(prijs_gmd / _k, 2) if _k else 0.0
 
             perceel["prijs_per_plot_eur"], perceel["prijs_per_plot_gmd"] = prijs_eur, prijs_gmd
 
-            doorlooptijd = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce")
+            # Verkoopperiode (maanden) tot einddatum
+            doorlooptijd_dt = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce")
             vandaag = date.today()
-            if pd.notnull(doorlooptijd):
-                delta = (doorlooptijd.year - vandaag.year) * 12 + (doorlooptijd.month - vandaag.month)
+            if pd.notnull(doorlooptijd_dt):
+                delta = (doorlooptijd_dt.year - vandaag.year) * 12 + (doorlooptijd_dt.month - vandaag.month)
                 verkoopperiode_maanden = max(delta, 1)
-            else:
-                verkoopperiode_maanden = 12
+       
             perceel["verkoopperiode_maanden"] = verkoopperiode_maanden
 
+            # ✅ Opbrengsten (AUTOMATISCH)
             totaal_opbrengst_gmd = perceel["aantal_plots"] * prijs_gmd
             totaal_opbrengst_eur = perceel["aantal_plots"] * prijs_eur
-            perceel["totaal_opbrengst_gmd"], perceel["totaal_opbrengst_eur"] = totaal_opbrengst_gmd, totaal_opbrengst_eur
+            perceel["totaal_opbrengst_gmd"] = totaal_opbrengst_gmd
+            perceel["totaal_opbrengst_eur"] = totaal_opbrengst_eur
             perceel["opbrengst_per_maand_gmd"] = totaal_opbrengst_gmd / verkoopperiode_maanden
             perceel["opbrengst_per_maand_eur"] = totaal_opbrengst_eur / verkoopperiode_maanden
 
+            # 👉 Ook wegschrijven als 'verwachte_opbrengst_eur' (geen handmatige input)
+            perceel["verwachte_opbrengst_eur"] = totaal_opbrengst_eur
+
             st.info(f"💶 Totale opbrengst: {format_currency(totaal_opbrengst_eur, 'EUR')} ≈ {format_currency(totaal_opbrengst_gmd, 'GMD')}")
             st.info(f"📅 Opbrengst per maand: {format_currency(perceel['opbrengst_per_maand_eur'], 'EUR')} ≈ {format_currency(perceel['opbrengst_per_maand_gmd'], 'GMD')}")
+
+            # 💸 Kosten (NU OOK HIER ZICHTBAAR)
+            st.markdown("#### 💸 Kosten")
+            kosten_qg = st.number_input(
+                "Verwachte kosten Quadraat Global (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_kosten_qg_eur", perceel.get("kosten_qg_eur", 0.0)) or 0.0),
+                format="%.2f",
+                key=f"verwachte_kosten_qg_{i}",
+            )
+            kosten_extern = st.number_input(
+                "Verwachte kosten Externen (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_kosten_extern_eur", perceel.get("kosten_extern_eur", 0.0)) or 0.0),
+                format="%.2f",
+                key=f"verwachte_kosten_extern_{i}",
+            )
+            totaal_kosten = round((kosten_qg or 0) + (kosten_extern or 0), 2)
+            st.info(f"**Totaal verwachte kosten:** € {totaal_kosten:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+            # Wegschrijven (incl. back‑compat)
+            perceel["verwachte_kosten_qg_eur"]     = kosten_qg
+            perceel["verwachte_kosten_extern_eur"] = kosten_extern
+            perceel["kosten_qg_eur"]               = kosten_qg
+            perceel["kosten_extern_eur"]           = kosten_extern
+            perceel["verwachte_kosten_eur"]        = totaal_kosten
+
+            # 🧮 Netto verwachte winst (opbrengst − kosten − aankoop)
+            perceel["verwachte_winst_eur"] = totaal_opbrengst_eur - totaal_kosten - aankoop_eur
+            st.success(f"📈 Netto verwachte winst: {format_currency(perceel['verwachte_winst_eur'], 'EUR')}")
+
         else:
+            # Niet-verkavelen: opbrengst handmatig + gesplitste kosten
             perceel["verwachte_opbrengst_eur"] = st.number_input(
                 "Verwachte opbrengst (EUR)",
                 min_value=0.0,
@@ -1027,25 +1182,62 @@ for i, perceel in enumerate(percelen):
                 format="%.2f",
                 key=f"verwachte_opbrengst_{i}",
             )
-            perceel["verwachte_kosten_eur"] = st.number_input(
-                "Verwachte kosten (EUR)",
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_eur", 0.0)),
-                format="%.2f",
-                key=f"verwachte_kosten_{i}",
-            )
 
+            # Gesplitste kosten (Quadraat Global + Externen)
+            st.markdown("#### 💸 Kosten")
+            kosten_qg = st.number_input(
+                "Verwachte kosten Quadraat Global (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_kosten_qg_eur", perceel.get("kosten_qg_eur", 0.0)) or 0.0),
+                format="%.2f",
+                key=f"verwachte_kosten_qg_{i}",
+            )
+            kosten_extern = st.number_input(
+                "Verwachte kosten Externen (EUR)",
+                min_value=0.0,
+                value=float(perceel.get("verwachte_kosten_extern_eur", perceel.get("kosten_extern_eur", 0.0)) or 0.0),
+                format="%.2f",
+                key=f"verwachte_kosten_extern_{i}",
+            )
+            totaal_kosten = round((kosten_qg or 0) + (kosten_extern or 0), 2)
+            st.info(f"**Totaal verwachte kosten:** € {totaal_kosten:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+            # Schrijf alles terug (incl. back‑compat sleutels)
+            perceel["verwachte_kosten_qg_eur"]     = kosten_qg
+            perceel["verwachte_kosten_extern_eur"] = kosten_extern
+            perceel["kosten_qg_eur"]               = kosten_qg
+            perceel["kosten_extern_eur"]           = kosten_extern
+            perceel["verwachte_kosten_eur"]        = totaal_kosten
+
+            # Netto verwachte winst (opbrengst − kosten − aankoop)
+            perceel["verwachte_winst_eur"] = (perceel["verwachte_opbrengst_eur"] or 0.0) - totaal_kosten - aankoop_eur
+            st.success(f"📈 Netto verwachte winst: {format_currency(perceel['verwachte_winst_eur'], 'EUR')}")
+
+        # ─────────────────────────────────────────────────────────────
         # Verwachte einddatum
+        # ─────────────────────────────────────────────────────────────
+        try:
+            eind_value = pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce").date()
+            if not pd.notnull(eind_value):
+                eind_value = date.today()
+        except Exception:
+            eind_value = date.today()
         perceel["doorlooptijd"] = st.date_input(
             "Verwachte einddatum",
-            value=pd.to_datetime(perceel.get("doorlooptijd"), errors="coerce").date() if perceel.get("doorlooptijd") else date.today(),
+            value=eind_value,
             key=f"doorlooptijd_{i}",
         ).isoformat()
 
         # Status / toelichting
-        perceel["status_toelichting"] = st.text_area("📜 Status / toelichting", value=perceel.get("status_toelichting", ""), key=f"status_toelichting_{i}")
+        perceel["status_toelichting"] = st.text_area(
+            "📜 Status / toelichting",
+            value=perceel.get("status_toelichting", ""),
+            key=f"status_toelichting_{i}",
+        )
 
-        # 🔐 Opslaan + Verwijderen (zonder <a>, met confirm in state)
+        # ─────────────────────────────────────────────────────────────
+        # Opslaan + Verwijderen (inline bevestiging)
+        # ─────────────────────────────────────────────────────────────
         if is_admin:
             col1, col2 = st.columns([3, 1])
 
@@ -1058,25 +1250,25 @@ for i, perceel in enumerate(percelen):
 
             with col2:
                 confirm_key = f"confirm_delete_{i}"
+
                 if not st.session_state.get(confirm_key, False):
                     if st.button("🗑 Verwijder", key=f"delete_{i}"):
                         st.session_state[confirm_key] = True
-                        st.rerun()
                 else:
-                    st.error("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden.")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.button("✅ Ja, definitief verwijderen", key=f"do_delete_{i}"):
-                            save_state()
-                            st.session_state["percelen"].pop(i)
-                            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
-                            st.session_state.pop(confirm_key, None)
-                            st.success("Perceel verwijderd.")
-                            st.rerun()
-                    with c2:
-                        if st.button("↩ Nee, annuleren", key=f"cancel_delete_{i}"):
-                            st.session_state.pop(confirm_key, None)
-                            st.rerun()
+                    with st.error("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden."):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            if st.button("✅ Ja, definitief verwijderen", key=f"do_delete_{i}"):
+                                save_state()
+                                st.session_state["percelen"].pop(i)
+                                save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                                st.session_state.pop(confirm_key, None)
+                                st.success("Perceel verwijderd.")
+                                st.rerun()
+                        with c2:
+                            if st.button("↩ Nee, annuleren", key=f"cancel_delete_{i}"):
+                                st.session_state.pop(confirm_key, None)
+                                st.info("Verwijderen geannuleerd.")
         else:
             st.info("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen.")
 
@@ -1157,7 +1349,8 @@ if is_admin and toevoegen:
             aantal_kavels = st.session_state.get("sidebar_aantal_kavels", 1)
             prijs_per_plot_eur = st.session_state.get("prijs_per_plot_eur_sidebar", 0.0)
             prijs_per_plot_gmd = st.session_state.get("prijs_per_plot_gmd_sidebar", 0.0)
-            verkoopperiode_maanden = st.session_state.get("periode_sidebar", 12)
+            verkoopperiode_maanden = st.session_state.get("periode_sidebar", 0)
+
 
             totaal_opbrengst_gmd = aantal_kavels * prijs_per_plot_gmd
             totaal_opbrengst_eur = aantal_kavels * prijs_per_plot_eur
@@ -1239,3 +1432,500 @@ if is_admin and toevoegen:
         st.session_state["skip_load"] = False
         st.cache_data.clear()
         st.rerun()
+
+#AI
+tab_chat, = st.tabs(["💬 Chat (Groq)"])
+
+with tab_chat:
+    st.caption("Copilot: beheer-chat met kaartfocus en analyses (lokale tools, NL-intent).")
+
+    # ---------- Helpers ----------
+    import json, re
+    from datetime import date, datetime
+    from difflib import get_close_matches
+    from geopy.distance import geodesic
+    from utils import hoofdsteden_df  # voor nabijste_regio
+
+    def _percelen_raw():
+        return st.session_state.get("percelen", []) or []
+
+    def _normalize_perceel(p: dict) -> dict:
+        p = dict(p or {})
+        p.setdefault("uploads", {}); p.setdefault("uploads_urls", {})
+        p.setdefault("investeerders", [])
+        p.setdefault("dealstage", "Aankoop")
+        for k in ("lengte","breedte","aankoopprijs_eur","verwachte_opbrengst_eur","verwachte_kosten_eur"):
+            try: p[k] = float(p.get(k) or 0)
+            except: p[k] = 0.0
+        p["polygon"] = p.get("polygon") or []
+        return p
+
+    def _percelen_norm():
+        return [_normalize_perceel(p) for p in _percelen_raw()]
+
+    def _closest_loc(name: str) -> str | None:
+        locs = [p.get("locatie","") for p in _percelen_raw()]
+        m = get_close_matches((name or "").strip(), locs, n=1, cutoff=0.6)
+        return m[0] if m else None
+
+    def _resolve_loc(name: str):
+        for p in _percelen_norm():
+            if (p.get("locatie","").lower().strip() == (name or "").lower().strip()):
+                return p, None
+        guess = _closest_loc(name)
+        if guess:
+            for p in _percelen_norm():
+                if p.get("locatie")==guess:
+                    return p, None
+            return None, guess
+        return None, None
+
+    def _parse_loc_list(txt: str) -> list[str]:
+        m = re.search(r"(?:voor|van)\s+(.+)$", (txt or "").lower())
+        chunk = m.group(1) if m else txt
+        parts = re.split(r"\s*,\s*|\s+en\s+", chunk or "")
+        return [p for p in (x.strip() for x in parts) if p]
+
+    # ---------- Lokale tools (single + geo) ----------
+    def get_aantal_percelen():
+        return {"aantal": len(_percelen_raw())}
+
+    def list_locaties(limit: int = 20):
+        ps = _percelen_raw()
+        locs = [p.get("locatie", "Onbekend") for p in ps if isinstance(p, dict)]
+        return {"locaties": locs[:max(1, int(limit))], "totaal": len(locs)}
+
+    def laatste_toegevoegd():
+        ps = _percelen_raw()
+        if not ps: return {"laatste": None}
+        p = ps[-1]
+        return {"laatste": {"locatie": p.get("locatie"), "aankoopdatum": p.get("aankoopdatum")}}
+
+    def _get_doc_requirements():
+        return documentvereisten_per_fase
+
+    def check_missing_docs(only_missing: bool = True):
+        req = _get_doc_requirements()
+        ps = _percelen_raw()
+        items = []
+        for p in ps:
+            fase = p.get("dealstage", "Aankoop")
+            must = list(req.get(fase, []))
+            have = p.get("uploads") or {}
+            urls = p.get("uploads_urls") or {}
+            missing = [d for d in must if not have.get(d)]
+            present = [{"doc": d, "url": urls.get(d, "")} for d in must if have.get(d)]
+            row = {"locatie": p.get("locatie","Onbekend"), "fase": fase, "ontbrekend": missing, "aanwezig": present}
+            if (not only_missing) or missing:
+                items.append(row)
+        summary = {
+            "totaal_percelen": len(ps),
+            "met_ontbrekende_docs": sum(1 for x in items if x["ontbrekend"]),
+            "fases": sorted(list(_get_doc_requirements().keys())),
+        }
+        return {"summary": summary, "items": items}
+
+    def summary_perceel(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        opb = float(p.get("verwachte_opbrengst_eur") or 0)
+        kos = float(p.get("verwachte_kosten_eur") or 0)
+        ank = float(p.get("aankoopprijs_eur") or 0)
+        w = opb - kos - ank
+        req = _get_doc_requirements()
+        must = req.get(p.get("dealstage","Aankoop"), [])
+        have = p.get("uploads") or {}
+        return {
+            "locatie": p.get("locatie"),
+            "fase": p.get("dealstage"),
+            "aankoop_eur": ank,
+            "opbrengst_eur": opb,
+            "kosten_eur": kos,
+            "verwachte_winst_eur": w,
+            "docs_ok": [d for d in must if have.get(d)],
+            "docs_missing": [d for d in must if not have.get(d)],
+        }
+
+    def investor_report():
+        agg = {}
+        for p in _percelen_norm():
+            for inv in (p.get("investeerders") or []):
+                naam = (inv.get("naam") or "Onbekend").strip()
+                a = agg.setdefault(naam, {"totaal_inleg_eur": 0.0, "percelen": 0, "rentetypes": set()})
+                a["totaal_inleg_eur"] += float(inv.get("bedrag_eur") or 0)
+                a["percelen"] += 1
+                if inv.get("rentetype"): a["rentetypes"].add(inv.get("rentetype"))
+        for v in agg.values(): v["rentetypes"] = sorted(list(v["rentetypes"]))
+        return {"investeerders": agg}
+
+    def advies_perceel(locatie: str):
+        try:
+            from utils import beoordeel_perceel_modulair, read_marktprijzen, hoofdsteden_df as _hdf
+            markt = read_marktprijzen()
+        except Exception:
+            beoordeel_perceel_modulair = None
+            markt = None
+            _hdf = None
+
+        target, sug = _resolve_loc(locatie)
+        if not target:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+
+        if callable(beoordeel_perceel_modulair) and markt is not None and _hdf is not None:
+            try:
+                score, toel, adv = beoordeel_perceel_modulair(target, markt, _hdf)
+                return {"locatie": target.get("locatie"), "score": score, "toelichting": toel, "advies": adv}
+            except Exception:
+                pass
+
+        ank = float(target.get("aankoopprijs_eur") or 0)
+        opb = float(target.get("verwachte_opbrengst_eur") or 0)
+        kos = float(target.get("verwachte_kosten_eur") or 0)
+        winst = opb - kos - ank
+        score = (1 if winst > 0 else -1) + (1 if (opb > 0 and ank > 0 and opb/ank >= 1.2) else 0)
+        advies = "Kopen" if score >= 2 else ("Twijfel" if score == 1 else "Mijden")
+        toel = f"Verwachte winst €{winst:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return {"locatie": target.get("locatie"), "score": score, "toelichting": toel, "advies": advies}
+
+    def get_totale_winst():
+        ps = _percelen_norm()
+        opb = sum(float(p.get("verwachte_opbrengst_eur") or 0) for p in ps)
+        kos = sum(float(p.get("verwachte_kosten_eur") or 0) for p in ps)
+        ank = sum(float(p.get("aankoopprijs_eur") or 0) for p in ps)
+        return {"opbrengst": opb, "kosten": kos, "aankoop": ank, "winst": opb - kos - ank}
+
+    def find_deadlines(days: int = 30):
+        ps = _percelen_raw()
+        today = date.today()
+        due = []
+        for p in ps:
+            d = p.get("doorlooptijd")
+            if not d: continue
+            try:
+                dt = datetime.fromisoformat(d).date()
+                delta = (dt - today).days
+                if delta <= days:
+                    due.append({"locatie": p.get("locatie"), "fase": p.get("dealstage"), "einddatum": d, "dagen_tot": delta})
+            except Exception:
+                pass
+        return {"horizon_dagen": days, "items": sorted(due, key=lambda x: x["dagen_tot"])}
+
+    def score_readiness():
+        req = _get_doc_requirements()
+        rows = []
+        for p in _percelen_norm():
+            fase = p.get("dealstage","Aankoop")
+            must = req.get(fase, [])
+            have = p.get("uploads") or {}
+            docs_ok = sum(1 for d in must if have.get(d))
+            docs_ratio = docs_ok / max(1, len(must))
+            winst = float(p.get("verwachte_winst_eur") or 0)
+            score = round(60*docs_ratio + 40*(1 if winst > 0 else 0), 1)
+            rows.append({"locatie": p.get("locatie"), "fase": fase, "docs_ok": f"{docs_ok}/{len(must)}", "winst": winst, "score": score})
+        return {"scores": sorted(rows, key=lambda x: x["score"], reverse=True)}
+
+    def focus_map_perceel(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if p:
+            st.session_state["kaart_focus_buffer"] = p.get("polygon")
+            return {"zoomed_to": p.get("locatie")}
+        return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+
+    def get_docs_perceel(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        have = p.get("uploads") or {}
+        urls = p.get("uploads_urls") or {}
+        docs = [{"doc": d, "url": urls.get(d, ""), "aanwezig": bool(v)} for d, v in (have.items() or [])]
+        return {"locatie": p.get("locatie"), "fase": p.get("dealstage"), "docs": docs}
+
+    def simulate_fx(delta_pct: float = -10):
+        ps = _percelen_norm()
+        out = []
+        for p in ps:
+            opb = float(p.get("verwachte_opbrengst_eur") or 0)
+            kos = float(p.get("verwachte_kosten_eur") or 0)
+            ank = float(p.get("aankoopprijs_eur") or 0)
+            opb_new = opb * (1 + delta_pct/100.0)
+            out.append({"locatie": p.get("locatie"), "winst_oud": opb-kos-ank, "winst_nieuw": round(opb_new-kos-ank, 2)})
+        return {"delta_pct": delta_pct, "items": out}
+
+    # --- Geo & metrics extra ---
+    def get_coordinaten(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        poly = p.get("polygon") or []
+        if not poly:
+            return {"locatie": p.get("locatie"), "coords": None, "message": "Geen polygon opgeslagen"}
+        lat = sum(pt[0] for pt in poly)/len(poly)
+        lon = sum(pt[1] for pt in poly)/len(poly)
+        st.session_state["kaart_focus_buffer"] = poly
+        return {"locatie": p.get("locatie"), "poly_points": len(poly),
+                "centroid": {"lat": round(lat,6), "lon": round(lon,6)},
+                "first_point": {"lat": poly[0][0], "lon": poly[0][1]}}
+
+    def get_bbox(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p or not p.get("polygon"):
+            return {"error": f"Geen polygon voor '{locatie}'", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        lats = [pt[0] for pt in p["polygon"]]; lons = [pt[1] for pt in p["polygon"]]
+        return {"locatie": p.get("locatie"), "bbox": [[min(lats), min(lons)], [max(lats), max(lons)]]}
+
+    def area_m2(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        L = float(p.get("lengte") or 0); B = float(p.get("breedte") or 0)
+        if L>0 and B>0:
+            return {"locatie": p["locatie"], "oppervlakte_m2": L*B, "bron":"lengte×breedte"}
+        return {"locatie": p["locatie"], "oppervlakte_m2": None, "message": "Geen L×B bekend"}
+
+    def prijs_per_m2(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        prijs = float(p.get("aankoopprijs_eur") or 0)
+        L = float(p.get("lengte") or 0); B = float(p.get("breedte") or 0)
+        opp = L*B if L>0 and B>0 else 0
+        if prijs>0 and opp>0:
+            return {"locatie": p["locatie"], "prijs_per_m2_eur": round(prijs/opp,2), "opp_m2": opp}
+        return {"locatie": p["locatie"], "prijs_per_m2_eur": None, "message": "Ontbrekende prijs of afmetingen"}
+
+    def nabijste_regio(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p or not p.get("polygon"):
+            return {"error": f"Geen polygon voor '{locatie}'", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        lat = sum(pt[0] for pt in p["polygon"])/len(p["polygon"])
+        lon = sum(pt[1] for pt in p["polygon"])/len(p["polygon"])
+        best = None; bestkm = 1e9
+        for _, r in hoofdsteden_df.iterrows():
+            km = geodesic((lat,lon), (r["Latitude"], r["Longitude"])).km
+            if km<bestkm: bestkm, best = km, r["regio"]
+        return {"locatie": p.get("locatie"), "centroid":{"lat":round(lat,6),"lon":round(lon,6)},
+                "nabijste_regio":best, "afstand_km": round(bestkm,2)}
+
+    # ---------- Batch/wijzere tools ----------
+    def summary_all():
+        return {"items": [summary_perceel(p.get("locatie","")) for p in _percelen_norm()]}
+
+    def docs_all():
+        return check_missing_docs(only_missing=False)
+
+    def readiness_top(n: int = 5):
+        res = score_readiness().get("scores", [])
+        return {"top": res[:max(1,int(n))]}
+
+    def advies_all():
+        out = []
+        for p in _percelen_norm():
+            try:
+                out.append(advies_perceel(p.get("locatie")))
+            except Exception:
+                pass
+        return {"adviezen": out}
+
+    def rank_by(field: str = "verwachte_winst_eur", n: int = 5, desc: bool = True):
+        ps = _percelen_norm()
+        rows = []
+        for p in ps:
+            val = float(p.get(field) or 0)
+            rows.append({"locatie": p.get("locatie"), field: val})
+        rows.sort(key=lambda r: r[field], reverse=bool(desc))
+        return {"veld": field, "top": rows[:max(1,int(n))]}
+
+    FUNCTIONS = {
+        # single
+        "get_aantal_percelen": get_aantal_percelen,
+        "list_locaties": list_locaties,
+        "laatste_toegevoegd": laatste_toegevoegd,
+        "check_missing_docs": check_missing_docs,
+        "summary_perceel": summary_perceel,
+        "investor_report": investor_report,
+        "advies_perceel": advies_perceel,
+        "get_totale_winst": get_totale_winst,
+        "find_deadlines": find_deadlines,
+        "score_readiness": score_readiness,
+        "focus_map_perceel": focus_map_perceel,
+        "get_docs_perceel": get_docs_perceel,
+        "simulate_fx": simulate_fx,
+        "get_coordinaten": get_coordinaten,
+        "get_bbox": get_bbox,
+        "area_m2": area_m2,
+        "prijs_per_m2": prijs_per_m2,
+        "nabijste_regio": nabijste_regio,
+        # batch/advanced
+        "summary_all": summary_all,
+        "docs_all": docs_all,
+        "readiness_top": readiness_top,
+        "advies_all": advies_all,
+        "rank_by": rank_by,
+    }
+
+    # ---------- Chatgeschiedenis ----------
+    if "chat_history_tools_beheer" not in st.session_state:
+        st.session_state.chat_history_tools_beheer = []
+    for m in st.session_state.chat_history_tools_beheer:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    use_tools = st.toggle("🔧 Tools gebruiken (lokaal)", value=True, key="beheer_tools_toggle")
+
+    # ---------- Intent-router (NL + synoniemen + kaart + geo + batch + fuzzy) ----------
+    def route_intent(txt: str):
+        t = (txt or "").lower().strip()
+
+        def has_any(s, words): return any(w in s for w in words)
+
+        perceel_hit = has_any(t, ["perceel","percelen","grondstuk","kavel","plot","plots"])
+
+        # Aantal / lijst / laatste
+        if perceel_hit and has_any(t, ["hoeveel","aantal"]): return "get_aantal_percelen", {}
+        if (has_any(t, ["lijst","toon","geef","laat zien"]) and "locat" in t) or "locaties" in t:
+            m = (re.search(r"limit\s*=\s*(\d+)", t) or re.search(r"\btop\s+(\d+)\b", t))
+            limit = int(m.group(1)) if m else 20
+            return "list_locaties", {"limit": limit}
+        if has_any(t, ["laatste","recent","recentste","meest recent"]): return "laatste_toegevoegd", {}
+
+        # Geo: waar ligt / coördinaten / bbox
+        loc = ( re.search(r"waar\s+ligt\s+(.+)$", t) or
+                re.search(r"co[oö]rdina[at]{1,2}en\s+(?:van|voor)\s+(.+)$", t) or
+                re.search(r"polygon\s+(?:van|voor)\s+(.+)$", t) or
+                re.search(r"bbox\s+(?:van|voor)\s+(.+)$", t) )
+        if loc:
+            name = loc.group(loc.lastindex).strip()
+            if "bbox" in t: return "get_bbox", {"locatie": name}
+            return "get_coordinaten", {"locatie": name}
+
+        # Kaartfocus
+        if any(w in t for w in ["zoom","kaart","focus","toon op kaart"]):
+            m = re.search(r"(zoom|kaart|focus)\s+(op\s+)?(.+)$", t)
+            if m: return "focus_map_perceel", {"locatie": m.group(3).strip()}
+
+        # Documenten (alle / specifiek)
+        if "alle" in t and "document" in t: return "docs_all", {}
+        if has_any(t, ["document","documenten","docs","papieren"]) and has_any(t, ["ontbreek","ontbreken","mis","missen","compleet","in orde"]):
+            return "check_missing_docs", {}
+        m = re.search(r"(documenten|docs|papieren)\s+(voor|van)\s+(.+)$", t)
+        if m: return "get_docs_perceel", {"locatie": m.group(3).strip()}
+
+        # Samenvatting (alle / specifiek)
+        if "alle" in t and perceel_hit and has_any(t, ["samenvat","samenvatting","overzicht"]): return "summary_all", {}
+        m = re.search(r"(samenvatting|summary|financ)[^\w]+(voor|van)\s+(.+)$", t)
+        if m and perceel_hit:
+            locs = _parse_loc_list(txt)
+            if len(locs) > 1: return "summary_all", {}
+            return "summary_perceel", {"locatie": locs[0]}
+
+        # Prijs/opp/regio
+        m = re.search(r"(?:prijs.*m2|€/m2|euro per m2).*(?:van|voor)\s+(.+)$", t)
+        if m: return "prijs_per_m2", {"locatie": m.group(1).strip()}
+        m = re.search(r"(?:opp(?:ervlakte)?|m2).*(?:van|voor)\s+(.+)$", t)
+        if m: return "area_m2", {"locatie": m.group(1).strip()}
+        m = re.search(r"(?:nabijste|dichtstbijzijnde)\s+regio\s+(?:van|voor)\s+(.+)$", t)
+        if m: return "nabijste_regio", {"locatie": m.group(1).strip()}
+
+        # Investeerdersrapport
+        if has_any(t, ["investeerder","investeerders","investor","investors"]) and has_any(t, ["rapport","overzicht","report"]):
+            return "investor_report", {}
+
+        # Advies (alle / specifiek)
+        if "advies" in t and "alle" in t and perceel_hit: return "advies_all", {}
+        m = re.search(r"(advies|beoordeel|beoordeling|goede?\s*koop)\s+(voor|van)\s+(.+)$", t)
+        if m and perceel_hit:
+            locs = _parse_loc_list(txt)
+            if len(locs) > 1: return "advies_all", {}
+            return "advies_perceel", {"locatie": locs[0]}
+
+        # Totale winst
+        if "winst" in t or "profit" in t: return "get_totale_winst", {}
+
+        # Deadlines
+        if any(w in t for w in ["deadline","deadlines","einddatum","einddata","binnen"]):
+            m = re.search(r"binnen\s*(\d+)\s*dag", t)
+            days = int(m.group(1)) if m else 30
+            return "find_deadlines", {"days": days}
+
+        # Readiness / verkoopklaar & Top N
+        if any(w in t for w in ["verkoopklaar","verkoopklaarheid","readiness","klaar voor verkoop","risico","score"]):
+            return "score_readiness", {}
+        m = re.search(r"(?:meest|hoogste)\s+(verkoopklaar(?:heid)?|readiness|winst)[^\d]*(\d+)?", t)
+        if m:
+            n = int(m.group(2) or 5)
+            if "winst" in m.group(1): return "rank_by", {"field": "verwachte_winst_eur", "n": n, "desc": True}
+            return "readiness_top", {"n": n}
+
+        # FX
+        m = re.search(r"(fx|wisselkoers|eur).*(\+|-)?\s*(\d+)\s*%", t)
+        if m:
+            sign = -1 if m.group(2) == "-" else 1
+            return "simulate_fx", {"delta_pct": sign*int(m.group(3))}
+
+        # Fuzzy geo fallback
+        m = re.search(r"waar\s+ligt\s+(.+)$", t)
+        if m:
+            guess = _closest_loc(m.group(1))
+            if guess: return "get_coordinaten", {"locatie": guess}
+
+        return None, None
+
+    # ---------- Chat-afhandeling ----------
+    if prompt := st.chat_input("Typ je beheer-vraag…", key="beheer_chat_input"):
+        st.session_state.chat_history_tools_beheer.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        base_messages = [
+            {"role":"system","content":(
+                "Je bent een beknopte NL-copilot voor Percelenbeheer. "
+                "Regels: (1) Probeer eerst een lokale tool; (2) TOOL_RESULT is waarheid; "
+                "Kies batch-varianten bij 'alle' of meerdere percelen; gebruik fuzzy-matching voor locatienamen "
+                "en toon 'suggestie' als beschikbaar. Antwoord in 1–3 zinnen; bedragen in EUR; "
+                "coördinaten als 'lat, lon' (6 decimalen)."
+            )},
+            *st.session_state.chat_history_tools_beheer,
+        ]
+
+        first_answer = groq_chat(base_messages)
+
+        fname, fargs = route_intent(prompt) if use_tools else (None, None)
+        if fname:
+            try:
+                out = FUNCTIONS[fname](**(fargs or {}))
+            except Exception as e:
+                out = {"error": f"{type(e).__name__}: {e}"}
+            if isinstance(out, dict) and out.get("error") and fargs and fargs.get("locatie"):
+                guess = _closest_loc(fargs["locatie"])
+                if guess: out["suggestie"] = f"Bedoelde je '{guess}'?"
+            tool_note = f"TOOL_RESULT {fname}: {json.dumps(out, ensure_ascii=False)}"
+            messages2 = base_messages + [
+                {"role":"assistant","content": tool_note},
+                {"role":"system","content":"Vat TOOL_RESULT kort samen (1–3 zinnen), noem getallen expliciet."}
+            ]
+            answer = groq_chat(messages2)
+        else:
+            answer = first_answer or "Voorbeelden: ‘waar ligt <locatie>’, ‘bbox van <locatie>’, ‘prijs per m2 van <locatie>’, ‘welke percelen missen documenten?’, ‘verkoopklaar top 5’, ‘zoom op <locatie>’."
+
+        with st.chat_message("assistant"):
+            st.markdown(answer or "_(Geen antwoord)_")
+            # Quick actions bij geo/samenvatting
+            try:
+                if fname in ("get_coordinaten","summary_perceel") and fargs and fargs.get("locatie"):
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        if st.button("🔍 Zoom op kaart", key=f"zoom_{fargs['locatie']}"):
+                            FUNCTIONS["focus_map_perceel"](locatie=fargs["locatie"])
+                            st.rerun()
+                    with c2:
+                        st.write(f"📄 Typ: documenten van {fargs['locatie']}")
+                    with c3:
+                        st.write(f"ℹ️ Typ: samenvatting van {fargs['locatie']}")
+            except Exception:
+                pass
+
+        st.session_state.chat_history_tools_beheer.append({"role":"assistant","content": answer})
+# ==== einde Groq-chatblok – Percelenbeheer ====================================
+
+
