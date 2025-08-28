@@ -3,22 +3,61 @@ import streamlit as st
 st.image("QG.png", width=180)
 
 import pandas as pd
+from groq import Groq
+from utils import get_ai_config
+import json
 import numpy as np
 from datetime import date, timedelta
 import requests
 import pydeck as pdk
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from utils import build_rentebetalingen
 from utils import (
-    geocode,
-    beoordeel_perceel_modulair,
     get_exchange_rate_eur_to_gmd,
     get_exchange_rate_volatility,
-    hoofdsteden_df,
-    format_currency
+    load_percelen_from_json,
+    format_currency,
+    build_rentebetalingen,
+    analyse_portfolio_perceel,   # ← nieuw
+    analyse_verkocht_perceel,    # ← nieuw
+    verdeel_winst,               # ← nieuw
 )
 from auth import login_check
 login_check()
+
+_cfg = get_ai_config()
+MODEL_PRIMARY  = _cfg.get("primary_model", "llama-3.3-70b-versatile")
+MODEL_FALLBACK = _cfg.get("fallback_model", "llama-3.1-8b-instant")
+TEMPERATURE    = float(_cfg.get("temperature", 0.2))
+TOP_P          = float(_cfg.get("top_p", 0.9))
+
+_api_key = st.secrets.get("GROQ_API_KEY")
+if not _api_key:
+    st.error("⚠️ GROQ_API_KEY ontbreekt in .streamlit/secrets.toml")
+    st.stop()
+
+_groq = Groq(api_key=_api_key)
+
+def groq_chat(messages, *, model: str | None = None) -> str:
+    """Robuuste helper met automatische fallback naar kleiner model."""
+    try:
+        res = _groq.chat.completions.create(
+            model=model or MODEL_PRIMARY,
+            messages=messages,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+        )
+        return (res.choices[0].message.content or "").strip()
+    except Exception:
+        res = _groq.chat.completions.create(
+            model=MODEL_FALLBACK,
+            messages=messages,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+        )
+        return (res.choices[0].message.content or "").strip()
+# ============================================================================
 
 from utils import load_percelen_from_json
 
@@ -58,74 +97,25 @@ totaal_m2 = sum(
 
 col1, col2 = st.columns(2)
 
+col1, col2 = st.columns(2)
+
 with col1:
     st.metric("📍 Aantal percelen", aantal_percelen)
 
 with col2:
     st.metric("📐 Totale oppervlakte", f"{totaal_m2:,.0f} m²")
 
+# 👉 Zet hier de nieuwe sectie 📅 Komende betalingen
+st.subheader("📅 Komende betalingen & opgebouwde rente")
 
+df_betalingen = build_rentebetalingen(st.session_state["percelen"], date.today())
 
-st.markdown(
-    "<h3 style='white-space:nowrap;'>📅 Komende betalingen & opgebouwde rente</h3>",
-    unsafe_allow_html=True
-)
-
-betalingen = []
-vandaag = date.today()
-
-for perceel in percelen:
-    locatie = perceel.get("locatie", "Onbekend")
-    aankoopdatum_str = perceel.get("aankoopdatum", "")
-    try:
-        aankoopdatum = datetime.strptime(aankoopdatum_str, "%Y-%m-%d").date()
-    except:
-        aankoopdatum = vandaag
-
-    for inv in perceel.get("investeerders", []):
-        naam = inv.get("naam", "Investeerder")
-        bedrag = inv.get("bedrag_eur", 0.0)
-        rente = inv.get("rente", 0.0)
-        rentetype = inv.get("rentetype", "bij verkoop")
-
-        if rente > 0 and rentetype in ["maandelijks", "jaarlijks"]:
-            if rentetype == "maandelijks":
-                maanden = (vandaag.year - aankoopdatum.year) * 12 + (vandaag.month - aankoopdatum.month)
-                opgebouwde_rente = bedrag * (rente / 12) * maanden
-                volgende_betaling = aankoopdatum + relativedelta(months=+maanden + 1)
-                volgende_bedrag = bedrag * rente / 12
-            elif rentetype == "jaarlijks":
-                jaren = max(vandaag.year - aankoopdatum.year, 0)
-                opgebouwde_rente = bedrag * rente * jaren
-                volgende_betaling = aankoopdatum + relativedelta(years=+jaren + 1)
-                volgende_bedrag = bedrag * rente
-            else:
-                opgebouwde_rente = 0
-                volgende_betaling = "n.v.t."
-                volgende_bedrag = 0
-
-            betalingen.append({
-                "Perceel": locatie,
-                "Investeerder": naam,
-                "Rentetype": rentetype,
-                "Startdatum": aankoopdatum.strftime("%d-%m-%Y"),
-                "Volgende betaling": volgende_betaling.strftime("%d-%m-%Y") if isinstance(volgende_betaling, date) else "n.v.t.",
-                "Bedrag volgende betaling (€)": round(volgende_bedrag, 2),
-                "Opgebouwde rente tot nu (€)": round(opgebouwde_rente, 2)
-            })
-
-
-if betalingen:
-    df_betalingen = pd.DataFrame(betalingen)
-    df_betalingen.reset_index(drop=True, inplace=True)
-
+if not df_betalingen.empty:
     for _, row in df_betalingen.iterrows():
         st.markdown(
             f"""
 <div style="background-color:#f8f9fa; padding:20px; border-radius:10px; margin-bottom:20px;
             box-shadow:0 2px 6px rgba(0,0,0,0.1); display:grid; grid-template-columns: 2fr 1fr; gap:30px; align-items:start;">
-
-  <!-- Linker kolom: labels en waarden netjes in 2 kolommen -->
   <div style="display:grid; grid-template-columns: 160px auto; row-gap:6px;">
     <div><b>📍 Perceel:</b></div><div>{row['Perceel']}</div>
     <div><b>👤 Investeerder:</b></div><div>{row['Investeerder']}</div>
@@ -133,228 +123,22 @@ if betalingen:
     <div><b>📅 Startdatum:</b></div><div style="white-space:nowrap;">{row['Startdatum']}</div>
     <div><b>➡️ Volgende betaling:</b></div><div style="white-space:nowrap;">{row['Volgende betaling']}</div>
   </div>
-
-  <!-- Rechter kolom: labels 1 regel, bedrag eronder -->
   <div style="text-align:right;">
     <div style="margin-bottom:15px;">
-      <p style="margin:0; font-size:18px; white-space:nowrap;">
-        <b>💶 Bedrag volgende betaling</b>
-      </p>
+      <p style="margin:0; font-size:18px;"><b>💶 Bedrag volgende betaling</b></p>
       <p style="margin:0; font-size:26px; font-weight:bold;">€ {row['Bedrag volgende betaling (€)']:.2f}</p>
     </div>
     <div>
-      <p style="margin:0; font-size:18px; white-space:nowrap;">
-        <b>🏦 Opgebouwde rente</b>
-      </p>
+      <p style="margin:0; font-size:18px;"><b>🏦 Opgebouwde rente</b></p>
       <p style="margin:0; font-size:26px; font-weight:bold;">€ {row['Opgebouwde rente tot nu (€)']:.2f}</p>
     </div>
   </div>
-
 </div>
             """,
             unsafe_allow_html=True,
         )
 else:
     st.info("Geen rentebetalingen gepland.")
-
-
-
-def analyse_portfolio_perceel(perceel: dict, groei_pct: float, horizon_jaren: int, exchange_rate: float) -> dict:
-    def safe_float(value):
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return 0.0
-
-    aankoopprijs = safe_float(perceel.get("aankoopprijs"))
-    aankoopdatum = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce")
-    investeerders = perceel.get("investeerders", [])
-    if not isinstance(investeerders, list):
-        investeerders = []
-
-    totaal_extern = sum(safe_float(i.get("bedrag")) for i in investeerders if isinstance(i, dict))
-    eigen_inleg = aankoopprijs - totaal_extern
-
-    if eigen_inleg > 0:
-        investeerders.append({
-            "naam": "Eigen beheer",
-            "bedrag": eigen_inleg,
-            "rente": 0,
-            "rentetype": "bij verkoop",
-            "winstdeling": 1.0
-        })
-
-    # Geen geldige analyse mogelijk zonder aankoopprijs of datum
-    if not pd.notnull(aankoopdatum) or aankoopprijs <= 0:
-        return None
-
-    # Verkoopprijs meenemen (handmatig of prognose)
-    verkoopprijs_gmd = safe_float(perceel.get("verkoopprijs"))
-    verkoopprijs_eur = safe_float(perceel.get("verkoopprijs_eur"))
-
-    if verkoopprijs_gmd > 0:
-        verkoopwaarde = verkoopprijs_gmd
-    else:
-        verkoopwaarde = aankoopprijs * ((1 + groei_pct / 100) ** horizon_jaren)
-
-    if verkoopprijs_eur <= 0 and exchange_rate:
-        verkoopprijs_eur = round(verkoopwaarde / exchange_rate, 2)
-
-    vandaag = pd.Timestamp.today()
-    maanden = max((vandaag.year - aankoopdatum.year) * 12 + (vandaag.month - aankoopdatum.month), 1)
-    jaren = maanden / 12
-
-    totaal_inleg = 0
-    totaal_rente = 0
-    investeerder_resultaten = []
-
-    for inv in investeerders:
-        if isinstance(inv, dict):
-            bedrag = safe_float(inv.get("bedrag"))
-            rente = safe_float(inv.get("rente"))
-            winstdeling_pct = safe_float(inv.get("winstdeling"))
-            rentetype = inv.get("rentetype", "maandelijks").lower()
-            naam = inv.get("naam", "Investeerder")
-        else:
-            bedrag = 0.0
-            rente = 0.0
-            winstdeling_pct = 0.0
-            rentetype = "bij verkoop"
-            naam = str(inv)
-
-        if rentetype == "maandelijks":
-            rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
-        elif rentetype == "jaarlijks":
-            rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
-        elif rentetype == "bij verkoop":
-            rente_opbouw = bedrag * rente
-        else:
-            rente_opbouw = 0
-
-        totaal_inleg += bedrag
-        totaal_rente += rente_opbouw
-
-        investeerder_resultaten.append({
-            "naam": naam,
-            "inleg": round(bedrag, 2),
-            "rente": round(rente_opbouw, 2),
-            "kapitaalkosten": round(bedrag + rente_opbouw, 2),
-            "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
-            "rentetype": rentetype,
-            "winstdeling_pct": winstdeling_pct
-        })
-
-    netto_winst = verkoopwaarde - totaal_inleg - totaal_rente
-    waardestijging = max(0, verkoopwaarde - aankoopprijs)
-
-    for result in investeerder_resultaten:
-        winstdeling_pct = result.get("winstdeling_pct", 0)
-        winst_aandeel = waardestijging * winstdeling_pct
-        result["winstdeling"] = round(winst_aandeel, 2)
-        result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
-
-    return {
-        "locatie": perceel.get("locatie"),
-        "verkoopprijs": round(verkoopwaarde, 2),
-        "verkoopprijs_eur": round(verkoopprijs_eur, 2) if verkoopprijs_eur else None,
-        "verkoopwaarde": round(verkoopwaarde, 2),
-        "verkoopwaarde_eur": round(verkoopwaarde / exchange_rate, 2) if exchange_rate else None,
-        "totaal_inleg": round(totaal_inleg, 2),
-        "totaal_rente": round(totaal_rente, 2),
-        "netto_winst": round(netto_winst, 2),
-        "netto_winst_eur": round(netto_winst / exchange_rate, 2) if exchange_rate else None,
-        "investeerders": investeerder_resultaten
-    }
-
-
-def analyse_verkocht_perceel(perceel: dict, exchange_rate: float) -> dict:
-    def safe_float(value):
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return 0.0
-
-    aankoopprijs = safe_float(perceel.get("aankoopprijs"))
-    verkoopprijs_gmd = safe_float(perceel.get("verkoopprijs"))
-    verkoopprijs_eur = safe_float(perceel.get("verkoopprijs_eur"))
-    aankoopdatum = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce")
-    verkoopdatum = pd.to_datetime(perceel.get("verkoopdatum"), errors="coerce")
-    investeerders = perceel.get("investeerders", [])
-    if not isinstance(investeerders, list):
-        investeerders = []
-
-    # Wisselkoers fallback
-    if verkoopprijs_eur <= 0 and exchange_rate:
-        verkoopprijs_eur = round(verkoopprijs_gmd / exchange_rate, 2)
-
-    # Bepaal looptijd voor rente
-    maanden = 0
-    jaren = 0
-    if pd.notnull(aankoopdatum) and pd.notnull(verkoopdatum):
-        maanden = max((verkoopdatum.year - aankoopdatum.year) * 12 + (verkoopdatum.month - aankoopdatum.month), 1)
-        jaren = maanden / 12
-
-    # Start met aankoopprijs als inleg (eigen beheer)
-    totaal_inleg = aankoopprijs
-    totaal_rente = 0
-    investeerder_resultaten = []
-
-    # Rente + winstdeling voor externe investeerders
-    for inv in investeerders:
-        if isinstance(inv, dict):
-            bedrag = safe_float(inv.get("bedrag"))
-            rente = safe_float(inv.get("rente"))
-            rentetype = inv.get("rentetype", "bij verkoop").lower()
-            winstdeling_pct = safe_float(inv.get("winstdeling"))
-            naam = inv.get("naam", "Investeerder")
-
-            # Rente-opbouw berekenen
-            if rentetype == "maandelijks":
-                rente_opbouw = bedrag * ((1 + rente / 12) ** maanden - 1)
-            elif rentetype == "jaarlijks":
-                rente_opbouw = bedrag * ((1 + rente) ** jaren - 1)
-            elif rentetype == "bij verkoop":
-                rente_opbouw = bedrag * rente
-            else:
-                rente_opbouw = 0
-
-            totaal_inleg += bedrag
-            totaal_rente += rente_opbouw
-
-            investeerder_resultaten.append({
-                "naam": naam,
-                "inleg": round(bedrag, 2),
-                "rente": round(rente_opbouw, 2),
-                "kapitaalkosten": round(bedrag + rente_opbouw, 2),
-                "kapitaalkosten_eur": round((bedrag + rente_opbouw) / exchange_rate, 2) if exchange_rate else None,
-                "rentetype": rentetype,
-                "winstdeling_pct": winstdeling_pct
-            })
-
-    # Netto winst berekenen
-    netto_winst = verkoopprijs_gmd - totaal_inleg - totaal_rente
-    netto_winst_eur = round(netto_winst / exchange_rate, 2) if exchange_rate else None
-
-    # Winstdeling verdelen
-    waardestijging = max(0, verkoopprijs_gmd - aankoopprijs)
-    for result in investeerder_resultaten:
-        winstdeling_pct = result.get("winstdeling_pct", 0)
-        winst_aandeel = waardestijging * winstdeling_pct
-        result["winstdeling"] = round(winst_aandeel, 2)
-        result["winst_eur"] = round(winst_aandeel / exchange_rate, 2) if exchange_rate else None
-
-    return {
-        "locatie": perceel.get("locatie"),
-        "verkoopprijs": round(verkoopprijs_gmd, 2),
-        "verkoopprijs_eur": round(verkoopprijs_eur, 2) if verkoopprijs_eur else None,
-        "verkoopwaarde": round(verkoopprijs_gmd, 2),
-        "verkoopwaarde_eur": round(verkoopprijs_eur, 2) if verkoopprijs_eur else None,
-        "totaal_inleg": round(totaal_inleg, 2),
-        "totaal_rente": round(totaal_rente, 2),
-        "netto_winst": round(netto_winst, 2),
-        "netto_winst_eur": netto_winst_eur,
-        "investeerders": investeerder_resultaten
-    }
 
 
 # Interface
@@ -406,93 +190,6 @@ df["verwachte_winst_eur"] = df["verwachte_opbrengst_eur"] - df["verwachte_kosten
 if "strategie" not in df.columns:
     df["strategie"] = None
 
-def verdeel_winst(perceel: dict):
-    import pandas as pd
-    from dateutil.relativedelta import relativedelta
-    from datetime import date
-    import streamlit as st
-
-    # Helper voor veilige conversie naar float
-    def num(x, default=0.0):
-        try:
-            if x is None or (isinstance(x, float) and pd.isna(x)):
-                return default
-            return float(x)
-        except Exception:
-            return default
-
-    # 1) Start- en einddatum
-    start_raw = (
-        perceel.get("start_verkooptraject")
-        or perceel.get("aankoopdatum")
-        or date.today()
-    )
-    einde_raw = perceel.get("doorlooptijd") or perceel.get("verkoopdatum")
-
-    start = pd.to_datetime(start_raw, errors="coerce")
-    einde = pd.to_datetime(einde_raw, errors="coerce")
-
-    if pd.isna(start) and not pd.isna(einde):
-        start = einde - relativedelta(months=1)
-    if pd.isna(start):
-        start = pd.Timestamp.today().normalize()
-    if pd.isna(einde) or einde < start:
-        einde = start + relativedelta(months=1)
-
-    # 2) Basisbedragen
-    opbrengst = num(perceel.get("totaal_opbrengst_eur")) or num(perceel.get("verwachte_opbrengst_eur"))
-    kosten    = num(perceel.get("verwachte_kosten_eur"))
-    aankoop   = num(perceel.get("aankoopprijs_eur"))
-    investering = aankoop + kosten
-    totaal_winst = opbrengst - kosten - aankoop
-
-    # 3) Looptijd in jaren
-    looptijd_jaren = max((einde.year - start.year) + (einde.month - start.month) / 12, 0.01)
-
-    # 4) Winst per jaar en rendement
-    if looptijd_jaren < 0.5:
-        winst_per_jaar = totaal_winst
-        rendement_per_jaar_pct = (totaal_winst / investering * 100) if investering != 0 else 0
-    else:
-        winst_per_jaar = totaal_winst / looptijd_jaren
-        rendement_per_jaar_pct = (winst_per_jaar / investering * 100) if investering != 0 else 0
-
-    # Debug info
-    st.write(
-        f"🔍 Perceel: {perceel.get('locatie', 'Onbekend')} | "
-        f"Opbrengst: €{opbrengst:.2f}, Kosten: €{kosten:.2f}, Aankoop: €{aankoop:.2f}, "
-        f"Investering: €{investering:.2f}, Winst: €{totaal_winst:.2f}, "
-        f"Looptijd: {looptijd_jaren:.2f} jaar, Winst/jaar: €{winst_per_jaar:.2f}, "
-        f"Rendement/jaar: {rendement_per_jaar_pct:.2f}%"
-    )
-
-    # 5) Aantal maanden
-    maanden = int(max((einde.year - start.year) * 12 + (einde.month - start.month) + 1, 1))
-    maand_winst = totaal_winst / maanden
-
-    # 6) Dataframe met extra info
-    rows = []
-    datum = start
-    for _ in range(maanden):
-        rows.append({
-            "jaar": datum.year,
-            "maand": datum.month,
-            "winst_eur": maand_winst,
-            "looptijd_jaren": looptijd_jaren,
-            "opbrengst": opbrengst,
-            "kosten": kosten,
-            "aankoop": aankoop,
-            "investering": investering,
-            "winst_per_jaar": winst_per_jaar,
-            "rendement_per_jaar_pct": rendement_per_jaar_pct
-        })
-        datum += relativedelta(months=1)
-
-    return pd.DataFrame(rows)
-
-
-# 📅 Totale verwachte winst per jaar
-st.subheader("📅 Totale verwachte winst per jaar")
 
 # 1️⃣ Percelen in planning (met doorlooptijd)
 planning_df = df[pd.to_datetime(df["doorlooptijd"], errors="coerce").notnull()].copy()
@@ -829,6 +526,410 @@ if resultaten:
                         )
 
 
+#AI
+tab_chat, = st.tabs(["💬 Chat (Groq)"])
+
+with tab_chat:
+    st.caption("Copilot: feiten uit je percelen + acties (lokale tools, NL-intent).")
+
+    # ---------- Helpers ----------
+    import json, re
+    from datetime import date, datetime
+    from difflib import get_close_matches
+
+    def _percelen_raw():
+        return st.session_state.get("percelen", []) or []
+
+    def _normalize_perceel(p: dict) -> dict:
+        p = dict(p or {})
+        p.setdefault("uploads", {}); p.setdefault("uploads_urls", {})
+        p.setdefault("investeerders", [])
+        p.setdefault("dealstage", "Aankoop")
+        for k in ("lengte","breedte","aankoopprijs_eur","verwachte_opbrengst_eur","verwachte_kosten_eur"):
+            try: p[k] = float(p.get(k) or 0)
+            except: p[k] = 0.0
+        p["polygon"] = p.get("polygon") or []
+        return p
+
+    def _percelen_norm():
+        return [_normalize_perceel(p) for p in _percelen_raw()]
+
+    def _closest_loc(name: str) -> str | None:
+        locs = [p.get("locatie","") for p in _percelen_raw()]
+        m = get_close_matches((name or "").strip(), locs, n=1, cutoff=0.6)
+        return m[0] if m else None
+
+    def _resolve_loc(name: str):
+        """Exact → fuzzy → None. Return (perceel_dict, suggestie)."""
+        for p in _percelen_norm():
+            if (p.get("locatie","").lower().strip() == (name or "").lower().strip()):
+                return p, None
+        guess = _closest_loc(name)
+        if guess:
+            for p in _percelen_norm():
+                if p.get("locatie")==guess:
+                    return p, None
+            return None, guess
+        return None, None
+
+    def _parse_loc_list(txt: str) -> list[str]:
+        """Sta lijsten toe: 'Sanyang 1, Kunkujang 2 en Tanji' → ['Sanyang 1','Kunkujang 2','Tanji']"""
+        m = re.search(r"(?:voor|van)\s+(.+)$", (txt or "").lower())
+        chunk = m.group(1) if m else txt
+        parts = re.split(r"\s*,\s*|\s+en\s+", chunk or "")
+        return [p for p in (x.strip() for x in parts) if p]
+
+    # ---------- Lokale tools (single) ----------
+    def get_aantal_percelen():
+        return {"aantal": len(_percelen_raw())}
+
+    def list_locaties(limit: int = 20):
+        ps = _percelen_raw()
+        locs = [p.get("locatie", "Onbekend") for p in ps if isinstance(p, dict)]
+        return {"locaties": locs[:max(1, int(limit))], "totaal": len(locs)}
+
+    def laatste_toegevoegd():
+        ps = _percelen_raw()
+        if not ps:
+            return {"laatste": None}
+        p = ps[-1]
+        return {"laatste": {"locatie": p.get("locatie"), "aankoopdatum": p.get("aankoopdatum")}}
+
+    # Documentenvereisten (fallback indien globale dict ontbreekt)
+    def _get_doc_requirements():
+        try:
+            return documentvereisten_per_fase
+        except NameError:
+            return {
+                "Aankoop": [
+                    "Sales agreement","Transfer of ownership","Sketch plan",
+                    "Rates ontvangstbewijs","Land Use Report","Goedkeuring Alkalo",
+                ],
+                "Omzetting / bewerking": ["Resale agreement"],
+                "Verkoop": ["Financieringsoverzicht","ID’s investeerders","Uitbetaling investeerders"],
+            }
+
+    def check_missing_docs(only_missing: bool = True):
+        req = _get_doc_requirements()
+        ps = _percelen_raw()
+        items = []
+        for p in ps:
+            fase = p.get("dealstage", "Aankoop")
+            must = list(req.get(fase, []))
+            have = p.get("uploads") or {}
+            urls = p.get("uploads_urls") or {}
+            missing = [d for d in must if not have.get(d)]
+            present = [{"doc": d, "url": urls.get(d, "")} for d in must if have.get(d)]
+            row = {"locatie": p.get("locatie","Onbekend"), "fase": fase, "ontbrekend": missing, "aanwezig": present}
+            if (not only_missing) or missing:
+                items.append(row)
+        summary = {
+            "totaal_percelen": len(ps),
+            "met_ontbrekende_docs": sum(1 for x in items if x["ontbrekend"]),
+            "fases": sorted(list(_get_doc_requirements().keys())),
+        }
+        return {"summary": summary, "items": items}
+
+    def summary_perceel(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        opb = float(p.get("verwachte_opbrengst_eur") or 0)
+        kos = float(p.get("verwachte_kosten_eur") or 0)
+        ank = float(p.get("aankoopprijs_eur") or 0)
+        w = opb - kos - ank
+        req = _get_doc_requirements()
+        must = req.get(p.get("dealstage","Aankoop"), [])
+        have = p.get("uploads") or {}
+        return {
+            "locatie": p.get("locatie"),
+            "fase": p.get("dealstage"),
+            "aankoop_eur": ank,
+            "opbrengst_eur": opb,
+            "kosten_eur": kos,
+            "verwachte_winst_eur": w,
+            "docs_ok": [d for d in must if have.get(d)],
+            "docs_missing": [d for d in must if not have.get(d)],
+        }
+
+    def investor_report():
+        agg = {}
+        for p in _percelen_norm():
+            for inv in (p.get("investeerders") or []):
+                naam = (inv.get("naam") or "Onbekend").strip()
+                a = agg.setdefault(naam, {"totaal_inleg_eur": 0.0, "percelen": 0, "rentetypes": set()})
+                a["totaal_inleg_eur"] += float(inv.get("bedrag_eur") or 0)
+                a["percelen"] += 1
+                if inv.get("rentetype"): a["rentetypes"].add(inv.get("rentetype"))
+        for v in agg.values(): v["rentetypes"] = sorted(list(v["rentetypes"]))
+        return {"investeerders": agg}
+
+    def advies_perceel(locatie: str):
+        # Probeer volledige utils-advies, anders val terug op heuristiek
+        try:
+            from utils import beoordeel_perceel_modulair, read_marktprijzen, hoofdsteden_df
+            markt = read_marktprijzen()
+        except Exception:
+            beoordeel_perceel_modulair = None
+            markt = None
+            hoofdsteden_df = None
+
+        target, sug = _resolve_loc(locatie)
+        if not target:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+
+        if callable(beoordeel_perceel_modulair) and markt is not None and hoofdsteden_df is not None:
+            try:
+                score, toel, adv = beoordeel_perceel_modulair(target, markt, hoofdsteden_df)
+                return {"locatie": target.get("locatie"), "score": score, "toelichting": toel, "advies": adv}
+            except Exception:
+                pass
+
+        ank = float(target.get("aankoopprijs_eur") or 0)
+        opb = float(target.get("verwachte_opbrengst_eur") or 0)
+        kos = float(target.get("verwachte_kosten_eur") or 0)
+        winst = opb - kos - ank
+        score = (1 if winst > 0 else -1) + (1 if (opb > 0 and ank > 0 and opb/ank >= 1.2) else 0)
+        advies = "Kopen" if score >= 2 else ("Twijfel" if score == 1 else "Mijden")
+        toel = f"Verwachte winst €{winst:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return {"locatie": target.get("locatie"), "score": score, "toelichting": toel, "advies": advies}
+
+    def get_totale_winst():
+        ps = _percelen_norm()
+        opb = sum(float(p.get("verwachte_opbrengst_eur") or 0) for p in ps)
+        kos = sum(float(p.get("verwachte_kosten_eur") or 0) for p in ps)
+        ank = sum(float(p.get("aankoopprijs_eur") or 0) for p in ps)
+        return {"opbrengst": opb, "kosten": kos, "aankoop": ank, "winst": opb - kos - ank}
+
+    def find_deadlines(days: int = 30):
+        ps = _percelen_raw()
+        today = date.today()
+        due = []
+        for p in ps:
+            d = p.get("doorlooptijd")
+            if not d: continue
+            try:
+                dt = datetime.fromisoformat(d).date()
+                delta = (dt - today).days
+                if delta <= days:
+                    due.append({"locatie": p.get("locatie"), "fase": p.get("dealstage"), "einddatum": d, "dagen_tot": delta})
+            except Exception:
+                pass
+        return {"horizon_dagen": days, "items": sorted(due, key=lambda x: x["dagen_tot"])}
+
+    def score_readiness():
+        req = _get_doc_requirements()
+        rows = []
+        for p in _percelen_norm():
+            fase = p.get("dealstage","Aankoop")
+            must = req.get(fase, [])
+            have = p.get("uploads") or {}
+            docs_ok = sum(1 for d in must if have.get(d))
+            docs_ratio = docs_ok / max(1, len(must))
+            winst = float(p.get("verwachte_winst_eur") or 0)
+            score = round(60*docs_ratio + 40*(1 if winst > 0 else 0), 1)
+            rows.append({"locatie": p.get("locatie"), "fase": fase, "docs_ok": f"{docs_ok}/{len(must)}", "winst": winst, "score": score})
+        return {"scores": sorted(rows, key=lambda x: x["score"], reverse=True)}
+
+    def get_docs_perceel(locatie: str):
+        p, sug = _resolve_loc(locatie)
+        if not p:
+            return {"error": f"Perceel '{locatie}' niet gevonden", **({"suggestie": f"Bedoelde je '{sug}'?"} if sug else {})}
+        have = p.get("uploads") or {}
+        urls = p.get("uploads_urls") or {}
+        docs = [{"doc": d, "url": urls.get(d, ""), "aanwezig": bool(v)} for d, v in (have.items() or [])]
+        return {"locatie": p.get("locatie"), "fase": p.get("dealstage"), "docs": docs}
+
+    def simulate_fx(delta_pct: float = -10):
+        ps = _percelen_norm()
+        out = []
+        for p in ps:
+            opb = float(p.get("verwachte_opbrengst_eur") or 0)
+            kos = float(p.get("verwachte_kosten_eur") or 0)
+            ank = float(p.get("aankoopprijs_eur") or 0)
+            opb_new = opb * (1 + delta_pct/100.0)
+            out.append({"locatie": p.get("locatie"), "winst_oud": opb-kos-ank, "winst_nieuw": round(opb_new-kos-ank, 2)})
+        return {"delta_pct": delta_pct, "items": out}
+
+    # ---------- Batch/wijzere tools ----------
+    def summary_all():
+        return {"items": [summary_perceel(p.get("locatie","")) for p in _percelen_norm()]}
+
+    def docs_all():
+        return check_missing_docs(only_missing=False)
+
+    def readiness_top(n: int = 5):
+        res = score_readiness().get("scores", [])
+        return {"top": res[:max(1,int(n))]}
+
+    def advies_all():
+        out = []
+        for p in _percelen_norm():
+            try:
+                out.append(advies_perceel(p.get("locatie")))
+            except Exception:
+                pass
+        return {"adviezen": out}
+
+    def rank_by(field: str = "verwachte_winst_eur", n: int = 5, desc: bool = True):
+        ps = _percelen_norm()
+        rows = []
+        for p in ps:
+            val = float(p.get(field) or 0)
+            rows.append({"locatie": p.get("locatie"), field: val})
+        rows.sort(key=lambda r: r[field], reverse=bool(desc))
+        return {"veld": field, "top": rows[:max(1,int(n))]}
+
+    FUNCTIONS = {
+        # single
+        "get_aantal_percelen": get_aantal_percelen,
+        "list_locaties": list_locaties,
+        "laatste_toegevoegd": laatste_toegevoegd,
+        "check_missing_docs": check_missing_docs,
+        "summary_perceel": summary_perceel,
+        "investor_report": investor_report,
+        "advies_perceel": advies_perceel,
+        "get_totale_winst": get_totale_winst,
+        "find_deadlines": find_deadlines,
+        "score_readiness": score_readiness,
+        "get_docs_perceel": get_docs_perceel,
+        "simulate_fx": simulate_fx,
+        # batch/advanced
+        "summary_all": summary_all,
+        "docs_all": docs_all,
+        "readiness_top": readiness_top,
+        "advies_all": advies_all,
+        "rank_by": rank_by,
+    }
+
+    # ---------- Chatgeschiedenis ----------
+    if "chat_history_tools_dashboard" not in st.session_state:
+        st.session_state.chat_history_tools_dashboard = []
+    for m in st.session_state.chat_history_tools_dashboard:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    use_tools = st.toggle("🔧 Tools gebruiken (lokaal)", value=True, key="dashboard_tools_toggle")
+
+    # ---------- Intent-router (NL + synoniemen + batch + fuzzy) ----------
+    def route_intent(txt: str):
+        t = (txt or "").lower().strip()
+
+        def has_any(s, words): return any(w in s for w in words)
+
+        perceel_hit = has_any(t, ["perceel","percelen","grondstuk","kavel","plot","plots"])
+
+        # Aantal / lijst
+        if perceel_hit and has_any(t, ["hoeveel","aantal"]): return "get_aantal_percelen", {}
+        if (has_any(t, ["lijst","toon","geef","laat zien"]) and "locat" in t) or "locaties" in t:
+            m = (re.search(r"limit\s*=\s*(\d+)", t) or re.search(r"\btop\s+(\d+)\b", t))
+            limit = int(m.group(1)) if m else 20
+            return "list_locaties", {"limit": limit}
+
+        # Laatste
+        if has_any(t, ["laatste","recent","recentste","meest recent"]): return "laatste_toegevoegd", {}
+
+        # Ontbrekende documenten (alle / specifiek)
+        if "alle" in t and "document" in t: return "docs_all", {}
+        if has_any(t, ["document","documenten","docs","papieren"]) and has_any(t, ["ontbreek","ontbreken","mis","missen","compleet","in orde"]):
+            return "check_missing_docs", {}
+        m = re.search(r"(documenten|docs|papieren)\s+(voor|van)\s+(.+)$", t)
+        if m: return "get_docs_perceel", {"locatie": m.group(3).strip()}
+
+        # Samenvatting (alle / specifiek / lijst)
+        if "alle" in t and perceel_hit and has_any(t, ["samenvat","samenvatting","overzicht"]): return "summary_all", {}
+        m = re.search(r"(samenvatting|summary|financ)[^\w]+(voor|van)\s+(.+)$", t)
+        if m and perceel_hit:
+            locs = _parse_loc_list(txt)
+            if len(locs) > 1: return "summary_all", {}
+            return "summary_perceel", {"locatie": locs[0]}
+
+        # Investeerdersrapport
+        if has_any(t, ["investeerder","investeerders","investor","investors"]) and has_any(t, ["rapport","overzicht","report"]):
+            return "investor_report", {}
+
+        # Advies (alle / specifiek / lijst)
+        if "advies" in t and "alle" in t and perceel_hit: return "advies_all", {}
+        m = re.search(r"(advies|beoordeel|beoordeling|goede?\s*koop)\s+(voor|van)\s+(.+)$", t)
+        if m and perceel_hit:
+            locs = _parse_loc_list(txt)
+            if len(locs) > 1: return "advies_all", {}
+            return "advies_perceel", {"locatie": locs[0]}
+
+        # Totale winst
+        if "winst" in t or "profit" in t:
+            return "get_totale_winst", {}
+
+        # Deadlines
+        if any(w in t for w in ["deadline","deadlines","einddatum","einddata","binnen"]):
+            m = re.search(r"binnen\s*(\d+)\s*dag", t)
+            days = int(m.group(1)) if m else 30
+            return "find_deadlines", {"days": days}
+
+        # Readiness / verkoopklaar
+        if any(w in t for w in ["verkoopklaar","verkoopklaarheid","readiness","klaar voor verkoop","risico","score"]):
+            return "score_readiness", {}
+
+        # Top N: readiness of winst
+        m = re.search(r"(?:meest|hoogste)\s+(verkoopklaar(?:heid)?|readiness|winst)[^\d]*(\d+)?", t)
+        if m:
+            n = int(m.group(2) or 5)
+            if "winst" in m.group(1):
+                return "rank_by", {"field": "verwachte_winst_eur", "n": n, "desc": True}
+            else:
+                return "readiness_top", {"n": n}
+
+        # FX
+        m = re.search(r"(fx|wisselkoers|eur).*(\+|-)?\s*(\d+)\s*%", t)
+        if m:
+            sign = -1 if m.group(2) == "-" else 1
+            return "simulate_fx", {"delta_pct": sign*int(m.group(3))}
+
+        return None, None
+
+    # ---------- Chat-afhandeling ----------
+    if prompt := st.chat_input("Typ je dashboard-vraag…", key="dashboard_chat_input"):
+        st.session_state.chat_history_tools_dashboard.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        base_messages = [
+            {"role":"system","content":(
+                "Je bent een beknopte NL-copilot voor het Vastgoeddashboard. "
+                "Regels: (1) Probeer eerst een lokale tool; (2) TOOL_RESULT is waarheid; "
+                "Als een intent zowel single- als batch-variant heeft, kies batch bij 'alle' of meerdere percelen; "
+                "Gebruik fuzzy-matching voor locatienamen en geef 'suggestie' terug indien van toepassing. "
+                "Antwoord in 1–3 zinnen, bedragen in EUR."
+            )},
+            *st.session_state.chat_history_tools_dashboard,
+        ]
+
+        first_answer = groq_chat(base_messages)
+
+        fname, fargs = route_intent(prompt) if use_tools else (None, None)
+        if fname:
+            try:
+                out = FUNCTIONS[fname](**(fargs or {}))
+            except Exception as e:
+                out = {"error": f"{type(e).__name__}: {e}"}
+            # hulp bij typefout
+            if isinstance(out, dict) and out.get("error") and fargs and fargs.get("locatie"):
+                guess = _closest_loc(fargs["locatie"])
+                if guess: out["suggestie"] = f"Bedoelde je '{guess}'?"
+            tool_note = f"TOOL_RESULT {fname}: {json.dumps(out, ensure_ascii=False)}"
+            messages2 = base_messages + [
+                {"role":"assistant","content": tool_note},
+                {"role":"system","content":"Vat TOOL_RESULT kort samen (1–3 zinnen), noem getallen expliciet."}
+            ]
+            answer = groq_chat(messages2)
+        else:
+            answer = first_answer or "Voorbeelden: ‘welke percelen missen documenten?’, ‘samenvatting voor Sanyang 2’, ‘advies voor alle percelen’, ‘meest winst 3’, ‘verkoopklaar top 5’, ‘fx -10%’."
+
+        with st.chat_message("assistant"):
+            st.markdown(answer or "_(Geen antwoord)_")
+
+        st.session_state.chat_history_tools_dashboard.append({"role":"assistant","content": answer})
+# ==== einde Groq-chatblok – Dashboard =========================================
 
 
 
