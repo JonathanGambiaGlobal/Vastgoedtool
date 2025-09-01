@@ -2,12 +2,16 @@ import streamlit as st
 import json
 import os
 from auth import login_check
+from utils import language_selector  # ✅ vertalingen importeren
 
-# 🌐 vertalingen ophalen uit session_state
+# 🔐 Login check
+login_check()
+
+# 🌐 taal instellen
+_, n_ = language_selector()
 _ = st.session_state.get("_", lambda x: x)
 
-# 🔐 Login check & alleen admins toelaten
-login_check()
+# 🚫 Alleen admins toelaten
 if st.session_state.rol != "admin":
     st.warning(_("⛔ Alleen admins hebben toegang tot dit scherm."))
     st.stop()
