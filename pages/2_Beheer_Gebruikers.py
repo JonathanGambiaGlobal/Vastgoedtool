@@ -9,7 +9,6 @@ login_check()
 
 # 🌐 taal instellen
 _, n_ = language_selector()
-_ = st.session_state.get("_", lambda x: x)
 
 # 🚫 Alleen admins toelaten
 if st.session_state.rol != "admin":
