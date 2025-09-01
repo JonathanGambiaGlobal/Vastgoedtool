@@ -5,3 +5,10 @@ backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#00b394"
 textColor = "#000000"  # zwarte tekst op wit
 font = "sans serif"
+
+[ai]
+provider = "groq"
+primary_model = "llama-3.3-70b-versatile"
+fallback_model = "llama-3.1-8b-instant"   # snelle backup bij rate-limits
+temperature = 0.2
+top_p = 0.9
