@@ -11,4 +11,8 @@ geopy
 streamlit-folium
 folium
 groq>=0.9
+Babel==2.15.0
+
+
+
 
