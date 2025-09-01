@@ -1,0 +1,1305 @@
+# Translations template for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-09-01 14:01+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: 0_Dashboard.py:45 pages/1_Percelenbeheer.py:59
+msgid "⚠️ GROQ_API_KEY ontbreekt in .streamlit/secrets.toml"
+msgstr ""
+
+#: 0_Dashboard.py:74
+msgid "Vastgoeddashboard – Gambia"
+msgstr ""
+
+#: 0_Dashboard.py:81
+msgid "💶 Live wisselkoers (EUR → GMD)"
+msgstr ""
+
+#: 0_Dashboard.py:83
+msgid "Wisselkoers niet beschikbaar."
+msgstr ""
+
+#: 0_Dashboard.py:86
+msgid "🟢 Laag"
+msgstr ""
+
+#: 0_Dashboard.py:86
+msgid "🟡 Gemiddeld"
+msgstr ""
+
+#: 0_Dashboard.py:86
+msgid "🔴 Hoog"
+msgstr ""
+
+#: 0_Dashboard.py:87
+msgid "📉 Wisselkoersvolatiliteit (30 dagen)"
+msgstr ""
+
+#: 0_Dashboard.py:89
+msgid "Geen historische wisselkoersdata beschikbaar."
+msgstr ""
+
+#: 0_Dashboard.py:94
+msgid "📊 Kerngegevens vastgoedportfolio"
+msgstr ""
+
+#: 0_Dashboard.py:105
+msgid "📍 Aantal percelen"
+msgstr ""
+
+#: 0_Dashboard.py:107
+msgid "📐 Totale oppervlakte"
+msgstr ""
+
+#: 0_Dashboard.py:110
+msgid "📅 Komende betalingen & opgebouwde rente"
+msgstr ""
+
+#: 0_Dashboard.py:121
+msgid "📍 Perceel"
+msgstr ""
+
+#: 0_Dashboard.py:122
+msgid "👤 Investeerder"
+msgstr ""
+
+#: 0_Dashboard.py:123
+msgid "📄 Rentetype"
+msgstr ""
+
+#: 0_Dashboard.py:124
+msgid "📅 Startdatum"
+msgstr ""
+
+#: 0_Dashboard.py:125
+msgid "➡️ Volgende betaling"
+msgstr ""
+
+#: 0_Dashboard.py:129
+msgid "💶 Bedrag volgende betaling"
+msgstr ""
+
+#: 0_Dashboard.py:133
+msgid "🏦 Opgebouwde rente"
+msgstr ""
+
+#: 0_Dashboard.py:143
+msgid "Geen rentebetalingen gepland."
+msgstr ""
+
+#: 0_Dashboard.py:146
+msgid "📈 Analyse verkochte percelen"
+msgstr ""
+
+#: 0_Dashboard.py:149
+msgid "Wisselkoers niet beschikbaar. Euro-waardes worden niet getoond."
+msgstr ""
+
+#: 0_Dashboard.py:152
+msgid "Er zijn nog geen percelen beschikbaar in het geheugen."
+msgstr ""
+
+#: 0_Dashboard.py:214 utils.py:331
+msgid "Perceel"
+msgstr ""
+
+#: 0_Dashboard.py:214 0_Dashboard.py:462 0_Dashboard.py:551 0_Dashboard.py:586
+#: 0_Dashboard.py:623 pages/1_Percelenbeheer.py:652
+#: pages/1_Percelenbeheer.py:671 pages/1_Percelenbeheer.py:675
+#: pages/1_Percelenbeheer.py:676 pages/1_Percelenbeheer.py:1437
+#: pages/1_Percelenbeheer.py:1462 pages/1_Percelenbeheer.py:1505 utils.py:306
+msgid "Onbekend"
+msgstr ""
+
+#: 0_Dashboard.py:215 0_Dashboard.py:300 0_Dashboard.py:438 0_Dashboard.py:452
+msgid "Totale winst (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:216
+msgid "Looptijd (jaren)"
+msgstr ""
+
+#: 0_Dashboard.py:217
+msgid "Winst per jaar (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:218
+msgid "Rendement per jaar (%)"
+msgstr ""
+
+#: 0_Dashboard.py:219
+msgid "Investering (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:220
+msgid "Opbrengst (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:227
+msgid "📋 Debug-overzicht per perceel (totaal)"
+msgstr ""
+
+#: 0_Dashboard.py:241
+msgid "📆 Totale verwachte winst per jaar"
+msgstr ""
+
+#: 0_Dashboard.py:244 0_Dashboard.py:267
+msgid "Jaar"
+msgstr ""
+
+#: 0_Dashboard.py:245
+msgid "Totale verwachte winst (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:246
+msgid "Gemiddelde winst per jaar (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:247
+msgid "Gemiddeld rendement per jaar (%)"
+msgstr ""
+
+#: 0_Dashboard.py:256
+msgid "📆 Verwachte winst per maand"
+msgstr ""
+
+#: 0_Dashboard.py:264
+msgid "🔍 Controle jaartotaal vs. som maanden"
+msgstr ""
+
+#: 0_Dashboard.py:268
+msgid "Winst uit jaartabel (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:269
+msgid "Som maandwaarden (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:270
+msgid "Verschil (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:276
+msgid "Geen geldige verdeling mogelijk."
+msgstr ""
+
+#: 0_Dashboard.py:278
+msgid "Nog geen geldige doorlooptijden of verkoopdata ingevoerd."
+msgstr ""
+
+#: 0_Dashboard.py:281
+msgid "🧭 Strategieoverzicht"
+msgstr ""
+
+#: 0_Dashboard.py:296 0_Dashboard.py:434 0_Dashboard.py:444 0_Dashboard.py:448
+#: 0_Dashboard.py:452 pages/1_Percelenbeheer.py:680
+#: pages/1_Percelenbeheer.py:1042
+msgid "Strategie"
+msgstr ""
+
+#: 0_Dashboard.py:297 0_Dashboard.py:435 0_Dashboard.py:444 0_Dashboard.py:448
+#: 0_Dashboard.py:452
+msgid "Aantal percelen"
+msgstr ""
+
+#: 0_Dashboard.py:298 0_Dashboard.py:436 0_Dashboard.py:444
+msgid "Totale opbrengst (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:299 0_Dashboard.py:437 0_Dashboard.py:448
+msgid "Totale kosten (EUR)"
+msgstr ""
+
+#: 0_Dashboard.py:305
+msgid "Er zijn nog geen strategieën ingevoerd."
+msgstr ""
+
+#: 0_Dashboard.py:310
+msgid ""
+"Er zijn nog geen verkochte percelen. Hieronder volgt een prognose van "
+"actieve percelen."
+msgstr ""
+
+#: 0_Dashboard.py:313
+msgid "Verwachte jaarlijkse waardestijging (%)"
+msgstr ""
+
+#: 0_Dashboard.py:314
+msgid "Prognoseperiode (jaren)"
+msgstr ""
+
+#: 0_Dashboard.py:329
+msgid "📊 Resultaten verkochte percelen"
+msgstr ""
+
+#: 0_Dashboard.py:331
+msgid "📊 Prognose actieve percelen"
+msgstr ""
+
+#: 0_Dashboard.py:372
+msgid "📊 Overzicht resultaten"
+msgstr ""
+
+#: 0_Dashboard.py:375
+msgid "📊 Financieel overzicht"
+msgstr ""
+
+#: 0_Dashboard.py:376
+msgid "🧭 Strategie & Planning"
+msgstr ""
+
+#: 0_Dashboard.py:377
+msgid "🗺️ Strategieoverzicht"
+msgstr ""
+
+#: 0_Dashboard.py:382
+msgid "💰 Verkoop"
+msgstr ""
+
+#: 0_Dashboard.py:382
+msgid "📐 Kosten & Inleg"
+msgstr ""
+
+#: 0_Dashboard.py:382 0_Dashboard.py:441
+msgid "📊 Winst"
+msgstr ""
+
+#: 0_Dashboard.py:398
+msgid "📈 Opbrengsten"
+msgstr ""
+
+#: 0_Dashboard.py:398 0_Dashboard.py:441
+msgid "📉 Kosten"
+msgstr ""
+
+#: 0_Dashboard.py:398
+msgid "📜 Overige"
+msgstr ""
+
+#: 0_Dashboard.py:418
+msgid "Geen overige kolommen."
+msgstr ""
+
+#: 0_Dashboard.py:441
+msgid "📈 Opbrengst"
+msgstr ""
+
+#: 0_Dashboard.py:455
+msgid "Nog geen strategieën ingevoerd."
+msgstr ""
+
+#: 0_Dashboard.py:459
+msgid "👥 Investeerders per verkocht perceel"
+msgstr ""
+
+#: 0_Dashboard.py:463
+msgid "details"
+msgstr ""
+
+#: 0_Dashboard.py:468 utils.py:313 utils.py:332 utils.py:391 utils.py:459
+msgid "Investeerder"
+msgstr ""
+
+#: 0_Dashboard.py:482
+msgid "kapitaalkosten"
+msgstr ""
+
+#: 0_Dashboard.py:483
+msgid "winstdeling"
+msgstr ""
+
+#: 0_Dashboard.py:484
+msgid "totaal"
+msgstr ""
+
+#: 0_Dashboard.py:485
+msgid "netto winst"
+msgstr ""
+
+#: 0_Dashboard.py:490
+msgid "Geen resultaten beschikbaar."
+msgstr ""
+
+#: 0_Dashboard.py:493 pages/1_Percelenbeheer.py:1378
+msgid "💬 Chat (Groq)"
+msgstr ""
+
+#: 0_Dashboard.py:496
+msgid "Copilot: feiten uit je percelen + acties (lokale tools, NL-intent)."
+msgstr ""
+
+#: 0_Dashboard.py:568 pages/1_Percelenbeheer.py:259
+msgid "Sales agreement"
+msgstr ""
+
+#: 0_Dashboard.py:568 pages/1_Percelenbeheer.py:260
+msgid "Transfer of ownership"
+msgstr ""
+
+#: 0_Dashboard.py:568 pages/1_Percelenbeheer.py:261
+msgid "Sketch plan"
+msgstr ""
+
+#: 0_Dashboard.py:569 pages/1_Percelenbeheer.py:262
+msgid "Rates ontvangstbewijs"
+msgstr ""
+
+#: 0_Dashboard.py:569 pages/1_Percelenbeheer.py:263
+msgid "Land Use Report"
+msgstr ""
+
+#: 0_Dashboard.py:569 pages/1_Percelenbeheer.py:264
+msgid "Goedkeuring Alkalo"
+msgstr ""
+
+#: 0_Dashboard.py:571 pages/1_Percelenbeheer.py:267
+msgid "Resale agreement"
+msgstr ""
+
+#: 0_Dashboard.py:572 pages/1_Percelenbeheer.py:270
+msgid "Financieringsoverzicht"
+msgstr ""
+
+#: 0_Dashboard.py:572 pages/1_Percelenbeheer.py:271
+msgid "ID’s investeerders"
+msgstr ""
+
+#: 0_Dashboard.py:572 pages/1_Percelenbeheer.py:272
+msgid "Uitbetaling investeerders"
+msgstr ""
+
+#: 0_Dashboard.py:599 0_Dashboard.py:644 0_Dashboard.py:717
+#: pages/1_Percelenbeheer.py:1480 pages/1_Percelenbeheer.py:1527
+#: pages/1_Percelenbeheer.py:1602 pages/1_Percelenbeheer.py:1608
+#: pages/1_Percelenbeheer.py:1633 pages/1_Percelenbeheer.py:1660
+#: pages/1_Percelenbeheer.py:1671
+#, python-brace-format
+msgid "Perceel '{loc}' niet gevonden"
+msgstr ""
+
+#: 0_Dashboard.py:600 0_Dashboard.py:645 0_Dashboard.py:718 0_Dashboard.py:913
+#: pages/1_Percelenbeheer.py:1481 pages/1_Percelenbeheer.py:1528
+#: pages/1_Percelenbeheer.py:1603 pages/1_Percelenbeheer.py:1609
+#: pages/1_Percelenbeheer.py:1634 pages/1_Percelenbeheer.py:1652
+#: pages/1_Percelenbeheer.py:1661 pages/1_Percelenbeheer.py:1672
+#: pages/1_Percelenbeheer.py:1685 pages/1_Percelenbeheer.py:1916
+#, python-brace-format
+msgid "Bedoelde je '{sug}'?"
+msgstr ""
+
+#: 0_Dashboard.py:659 pages/1_Percelenbeheer.py:1543 utils.py:168
+msgid "Kopen"
+msgstr ""
+
+#: 0_Dashboard.py:659 pages/1_Percelenbeheer.py:1543 utils.py:168
+msgid "Twijfel"
+msgstr ""
+
+#: 0_Dashboard.py:659 pages/1_Percelenbeheer.py:1543 utils.py:168
+msgid "Mijden"
+msgstr ""
+
+#: 0_Dashboard.py:660 pages/1_Percelenbeheer.py:1544
+#, python-brace-format
+msgid "Verwachte winst €{w}"
+msgstr ""
+
+#: 0_Dashboard.py:797 pages/1_Percelenbeheer.py:1884
+msgid "🔧 Tools gebruiken (lokaal)"
+msgstr ""
+
+#: 0_Dashboard.py:884
+msgid "Typ je dashboard-vraag…"
+msgstr ""
+
+#: 0_Dashboard.py:891
+msgid ""
+"Je bent een beknopte NL-copilot voor het Vastgoeddashboard. Regels: (1) "
+"Probeer eerst een lokale tool; (2) TOOL_RESULT is waarheid; Als een "
+"intent zowel single- als batch-variant heeft, kies batch bij 'alle' of "
+"meerdere percelen; Gebruik fuzzy-matching voor locatienamen en geef "
+"'suggestie' terug indien van toepassing. Antwoord in 1–3 zinnen, bedragen"
+" in EUR."
+msgstr ""
+
+#: 0_Dashboard.py:918 pages/1_Percelenbeheer.py:1921
+msgid "Vat TOOL_RESULT kort samen (1–3 zinnen), noem getallen expliciet."
+msgstr ""
+
+#: 0_Dashboard.py:923
+msgid ""
+"Voorbeelden: ‘welke percelen missen documenten?’, ‘samenvatting voor "
+"Sanyang 2’, ‘advies voor alle percelen’, ‘meest winst 3’, ‘verkoopklaar "
+"top 5’, ‘fx -10%’."
+msgstr ""
+
+#: 0_Dashboard.py:929 pages/1_Percelenbeheer.py:1933
+msgid "Geen antwoord"
+msgstr ""
+
+#: auth.py:32
+msgid "🔐 Login vereist"
+msgstr ""
+
+#: auth.py:33
+msgid "Gebruikersnaam"
+msgstr ""
+
+#: auth.py:34 pages/2_Beheer_Gebruikers.py:51
+msgid "Wachtwoord"
+msgstr ""
+
+#: auth.py:36
+msgid "Inloggen"
+msgstr ""
+
+#: auth.py:42
+#, python-brace-format
+msgid "Ingelogd als {gebruiker} ({rol})"
+msgstr ""
+
+#: auth.py:47
+msgid "Ongeldige inloggegevens"
+msgstr ""
+
+#: auth.py:51
+#, python-brace-format
+msgid "✅ Ingelogd als: {gebruiker} ({rol})"
+msgstr ""
+
+#: utils.py:128
+msgid "Hoge investering verhoogt valutarisico."
+msgstr ""
+
+#: utils.py:131
+msgid "Beheersbare investering verlaagt valutarisico."
+msgstr ""
+
+#: utils.py:136
+msgid "Hoog verwacht rendement."
+msgstr ""
+
+#: utils.py:139
+msgid "Negatief verwacht rendement."
+msgstr ""
+
+#: utils.py:141
+msgid "Gemiddeld rendement."
+msgstr ""
+
+#: utils.py:159
+msgid "Aankoopprijs ligt boven marktwaarde."
+msgstr ""
+
+#: utils.py:162
+msgid "Aankoopprijs ligt onder marktwaarde."
+msgstr ""
+
+#: utils.py:164
+msgid "Aankoopprijs ligt binnen marktwaarde."
+msgstr ""
+
+#: utils.py:166
+msgid "Marktprijs per m² niet beschikbaar."
+msgstr ""
+
+#: utils.py:195
+msgid "Geen sheet_id in secrets en geen sheet_name opgegeven."
+msgstr ""
+
+#: utils.py:248
+msgid "De kolommen 'regio' en/of 'prijs_per_m2' ontbreken in het tabblad."
+msgstr ""
+
+#: utils.py:252
+#, python-brace-format
+msgid "Marktprijzen niet kunnen laden: {e}"
+msgstr ""
+
+#: utils.py:265
+#, python-brace-format
+msgid "Fout bij opslaan van marktprijzen: {e}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:42 pages/1_Percelenbeheer.py:153
+#: pages/1_Percelenbeheer.py:546 pages/1_Percelenbeheer.py:547
+#: pages/1_Percelenbeheer.py:1298 utils.py:316 utils.py:366 utils.py:394
+#: utils.py:457
+msgid "bij verkoop"
+msgstr ""
+
+#: utils.py:333
+msgid "Rentetype"
+msgstr ""
+
+#: utils.py:334
+msgid "Startdatum"
+msgstr ""
+
+#: utils.py:335
+msgid "Volgende betaling"
+msgstr ""
+
+#: utils.py:336
+msgid "Bedrag volgende betaling (€)"
+msgstr ""
+
+#: utils.py:337
+msgid "Opgebouwde rente tot nu (€)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:148 pages/1_Percelenbeheer.py:519 utils.py:363
+msgid "Eigen beheer"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:40 pages/1_Percelenbeheer.py:546
+#: pages/1_Percelenbeheer.py:547 utils.py:390
+msgid "maandelijks"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:41 pages/1_Percelenbeheer.py:546
+#: pages/1_Percelenbeheer.py:547
+msgid "jaarlijks"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:46 pages/1_Percelenbeheer.py:381
+#: pages/1_Percelenbeheer.py:1026
+msgid "Korte termijn verkoop"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:47
+msgid "Lange termijn aanhouden"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:48 pages/1_Percelenbeheer.py:382
+#: pages/1_Percelenbeheer.py:412 pages/1_Percelenbeheer.py:475
+#: pages/1_Percelenbeheer.py:1027 pages/1_Percelenbeheer.py:1054
+#: pages/1_Percelenbeheer.py:1301
+msgid "Verkavelen en verkopen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:108 pages/1_Percelenbeheer.py:680
+msgid "n.v.t."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:116 pages/1_Percelenbeheer.py:117
+#: pages/1_Percelenbeheer.py:118 pages/1_Percelenbeheer.py:119
+#: pages/1_Percelenbeheer.py:128 pages/1_Percelenbeheer.py:251
+#: pages/1_Percelenbeheer.py:258 pages/1_Percelenbeheer.py:302
+#: pages/1_Percelenbeheer.py:574 pages/1_Percelenbeheer.py:580
+#: pages/1_Percelenbeheer.py:818 pages/1_Percelenbeheer.py:957
+#: pages/1_Percelenbeheer.py:1289 pages/1_Percelenbeheer.py:1396
+#: pages/1_Percelenbeheer.py:1455 pages/1_Percelenbeheer.py:1488
+#: pages/1_Percelenbeheer.py:1581
+msgid "Aankoop"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:120 pages/1_Percelenbeheer.py:121
+#: pages/1_Percelenbeheer.py:252 pages/1_Percelenbeheer.py:266
+#: pages/1_Percelenbeheer.py:957
+msgid "Omzetting / bewerking"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:122 pages/1_Percelenbeheer.py:253
+#: pages/1_Percelenbeheer.py:269 pages/1_Percelenbeheer.py:839
+#: pages/1_Percelenbeheer.py:957 pages/1_Percelenbeheer.py:1289
+msgid "Verkoop"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:172 pages/1_Percelenbeheer.py:567
+#: pages/1_Percelenbeheer.py:846
+msgid "Geregistreerd land"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:189
+msgid ""
+"✅ Migratie uitgevoerd: fasen gemapt, records opgeschoond en winst "
+"bijgewerkt."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:208
+msgid "🔄 Percelen na undo:"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:210
+msgid "🧪 Keys vóór reset:"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:247
+msgid "🧼 Keys ná reset:"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:254 pages/1_Percelenbeheer.py:957
+#: pages/1_Percelenbeheer.py:979
+msgid "Verkocht"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:288
+msgid "Percelenbeheer"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:297
+#, python-brace-format
+msgid "Percel index {i} is ongeldig en wordt genegeerd."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:305
+msgid "📝 Perceelinvoer"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:310
+msgid "📍 Gebied & Subzone"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:310 pages/1_Percelenbeheer.py:312
+msgid "➕ Nieuw gebied..."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:313
+msgid "🌍 Hoofdgebied (bv. Serekunda)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:314
+msgid "🏘 Subzone (bv. Sanyang)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:321
+#, python-brace-format
+msgid "📌 Nieuwe locatie: {loc}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:324 pages/1_Percelenbeheer.py:843
+msgid "📏 Lengte (m)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:325 pages/1_Percelenbeheer.py:844
+msgid "📐 Breedte (m)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:328
+msgid "⚡ Snel invoeren als verkocht (historisch)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:335
+msgid "🗕️ Aankoopdatum"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:337
+msgid "Valuta aankoopprijs"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:342 pages/1_Percelenbeheer.py:673
+msgid "Aankoopprijs"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:348 pages/1_Percelenbeheer.py:357
+#: pages/1_Percelenbeheer.py:369
+#, python-brace-format
+msgid "≈ {prijs} (koers: {koers:.2f})"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:352 pages/1_Percelenbeheer.py:373
+msgid "⚠️ Wisselkoers niet beschikbaar — GMD niet omgerekend."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:361
+msgid "⚠️ Wisselkoers niet beschikbaar — EUR niet omgerekend."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:364
+msgid "💰 Verkoopgegevens (historisch)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:365 pages/1_Percelenbeheer.py:987
+msgid "🗓️ Verkoopdatum"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:366
+msgid "💶 Verkoopprijs (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:379
+msgid "🧭 Strategie en planning"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:383 pages/1_Percelenbeheer.py:1028
+msgid "Zelf woningen bouwen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:384 pages/1_Percelenbeheer.py:1029
+msgid "Zelf bedrijf starten"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:385
+msgid "Nog onbekend"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:388
+msgid "Doel met dit perceel"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:392 pages/1_Percelenbeheer.py:1061
+msgid "🗓️ Start verkooptraject"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:399 pages/1_Percelenbeheer.py:1189
+msgid "Verwachte einddatum"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:414 pages/1_Percelenbeheer.py:1064
+msgid "Aantal kavels"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:421 pages/1_Percelenbeheer.py:1069
+msgid "Valuta prijs per kavel"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:429 pages/1_Percelenbeheer.py:1073
+msgid "Prijs per kavel (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:438 pages/1_Percelenbeheer.py:1082
+msgid "Prijs per kavel (GMD)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:452 pages/1_Percelenbeheer.py:1108
+#, python-brace-format
+msgid "💶 Totale opbrengst: {eur} ≈ {gmd}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:458 pages/1_Percelenbeheer.py:1112
+#, python-brace-format
+msgid "📅 Opbrengst per maand: {eur} ≈ {gmd}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:478
+#, python-brace-format
+msgid "Verwachte opbrengst (automatisch): {eur}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:484 pages/1_Percelenbeheer.py:1147
+msgid "Verwachte opbrengst (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:490 pages/1_Percelenbeheer.py:1120
+#: pages/1_Percelenbeheer.py:1156
+msgid "Verwachte kosten Quadraat Global (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:495 pages/1_Percelenbeheer.py:1127
+#: pages/1_Percelenbeheer.py:1163
+msgid "Verwachte kosten Externen (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:500
+#, python-brace-format
+msgid "Totaal verwachte kosten: € {kosten:,.2f}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:503 pages/1_Percelenbeheer.py:684
+msgid "Status / toelichting"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:509 pages/1_Percelenbeheer.py:858
+msgid "👥 Investeerders"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:511
+msgid "Financieringsvorm"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:512
+msgid "Eigen beheer (geen externe investeerders)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:512
+msgid "Met externe investeerders"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:513
+#, python-format
+msgid "Kies ‘Eigen beheer’ als dit perceel 100% intern gefinancierd is."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:520 pages/1_Percelenbeheer.py:831
+msgid "ℹ️ Dit perceel staat in **eigen beheer** (geen externe investeerders)."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:524
+msgid "Aantal externe investeerders"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:529
+#, python-brace-format
+msgid "#### Investeerder {i}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:531
+#, python-brace-format
+msgid "Naam {i}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:533
+#, python-brace-format
+msgid "Bedrag {i} (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:538
+#, python-brace-format
+msgid "Rente {i} (%)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:542
+#, python-brace-format
+msgid "Winstdeling {i} (%)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:546
+#, python-brace-format
+msgid "Rentevorm {i}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:564 pages/1_Percelenbeheer.py:928
+msgid "📋 Documenten"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:566 pages/1_Percelenbeheer.py:846
+msgid "Eigendomsvorm"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:570 pages/1_Percelenbeheer.py:847
+msgid ""
+"ℹ️ Zowel *Customary land* als *Freehold land* worden in Gambia na "
+"registratie gelijk behandeld."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:588 pages/1_Percelenbeheer.py:936
+#, python-brace-format
+msgid "{doc} aanwezig?"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:591 pages/1_Percelenbeheer.py:942
+#, python-brace-format
+msgid "Link naar {doc}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:597 pages/1_Percelenbeheer.py:948
+#, python-brace-format
+msgid "Open {doc}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:648
+#, python-brace-format
+msgid "Percel is geen dict maar {t}, wordt overgeslagen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:657 pages/1_Percelenbeheer.py:667
+msgid "Geen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:671 pages/1_Percelenbeheer.py:822
+msgid "Locatie"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:672
+msgid "Aankoopdatum"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:674
+msgid "Aankoopprijs (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:675
+msgid "Dealstage"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:676
+msgid "Eigendom"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:677
+msgid "Wordt gesplitst"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:677
+msgid "Ja"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:677
+msgid "Nee"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:678
+msgid "Investeerders"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:679
+msgid "Documenten aanwezig"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:681
+msgid "Doorlooptijd"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:682
+msgid "Verwachte opbrengst"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:683
+msgid "Verwachte kosten"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:725
+msgid "↩ Undo laatste wijziging"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:730
+msgid "📤 Percelen opnieuw laden"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:732
+msgid "Percelen zijn opnieuw geladen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:738 pages/1_Percelenbeheer.py:820
+#, python-brace-format
+msgid "Perceel {i}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:762
+msgid "📍 Kies perceel"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:798 pages/1_Percelenbeheer.py:1223
+msgid "Perceel verwijderd."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:800
+msgid "Verwijderen mislukt."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:809
+#, python-brace-format
+msgid "Percel op index {i} is ongeldig en wordt overgeslagen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:824
+#, python-brace-format
+msgid "🔍 Zoom in op {loc}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:829
+msgid "ℹ️ Dit perceel heeft **externe investeerders**."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:835
+msgid "Wordt perceel gesplitst?"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:855
+msgid "🗓️ Aankoopdatum"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:863
+msgid "Geen investeerders geregistreerd voor dit perceel."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:866
+#, python-brace-format
+msgid "##### Investeerder {nr}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:867
+#, python-brace-format
+msgid "Naam investeerder {nr}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:869
+#, python-brace-format
+msgid "Bedrag {nr} (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:877
+#, python-brace-format
+msgid "Rente {nr} (%)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:887
+#, python-brace-format
+msgid "Winstdeling {nr} (%)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:905
+#, python-brace-format
+msgid "Rentevorm {nr}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:964
+#, python-brace-format
+msgid "⬅️ Vorige fase ({fase})"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:972
+#, python-brace-format
+msgid "➡️ Volgende fase ({fase})"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:980
+msgid "💰 Verkoopgegevens (gerealiseerd)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:990
+msgid "Valuta verkoopprijs"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:994
+msgid "Verkoopprijs (EUR)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1003
+msgid "Verkoopprijs (GMD)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1015
+#, python-brace-format
+msgid "✅ Vastgelegd: {eur} ≈ {gmd} (koers {koers:.2f})"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1021
+msgid "✅ Vastgelegd (koers onbekend): bedragen niet omgerekend."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1024
+msgid "🌟 Strategie en planning"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1118 pages/1_Percelenbeheer.py:1154
+msgid "💸 Kosten"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1134 pages/1_Percelenbeheer.py:1170
+#, python-brace-format
+msgid "**Totaal verwachte kosten:** € {k:,.2f}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1143 pages/1_Percelenbeheer.py:1179
+#, python-brace-format
+msgid "📈 Netto verwachte winst: {eur}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1195
+msgid "📜 Status / toelichting"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1204
+#, python-brace-format
+msgid "💾 Opslaan wijzigingen ({loc})"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1208
+#, python-brace-format
+msgid "Wijzigingen aan {loc} opgeslagen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1212 pages/2_Beheer_Gebruikers.py:40
+msgid "🗑 Verwijder"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1215
+msgid ""
+"⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet "
+"ongedaan gemaakt worden."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1218
+msgid "✅ Ja, definitief verwijderen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1226
+msgid "↩ Nee, annuleren"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1228
+msgid "Verwijderen geannuleerd."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1230
+msgid "🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1233
+msgid "📍 Coördinaten invoer"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1234
+msgid "Coördinatentype"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1234 pages/1_Percelenbeheer.py:1242
+msgid "UTM"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1234
+msgid "Latitude/Longitude"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1254 pages/1_Percelenbeheer.py:1287
+msgid "❗ Polygon moet minstens 3 punten bevatten."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1267
+msgid "🧹 Migratie uitvoeren (eenmalig)"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1272
+msgid "➕ Voeg perceel toe"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1274
+msgid "🔒 Alleen admins kunnen percelen toevoegen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1281
+msgid "❗ Vul een locatie in."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1283
+msgid "⚠️ Er bestaat al een perceel met deze locatie."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1284
+msgid "Met externe"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1285
+msgid "❗ Voeg minimaal één externe investeerder toe óf kies ‘Eigen beheer’."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1370
+#, python-brace-format
+msgid "Perceel '{loc}' toegevoegd en opgeslagen."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1381
+msgid "Copilot: beheer-chat met kaartfocus en analyses (lokale tools, NL-intent)."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1637
+msgid "Geen polygon opgeslagen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1651 pages/1_Percelenbeheer.py:1684
+#, python-brace-format
+msgid "Geen polygon voor '{loc}'"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1665
+msgid "lengte × breedte"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1666
+msgid "Geen lengte/breedte bekend"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1679
+msgid "Ontbrekende prijs of afmetingen"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1887
+msgid "Typ je beheer-vraag…"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1894
+msgid ""
+"Je bent een beknopte NL-copilot voor Percelenbeheer. Regels: (1) Probeer "
+"eerst een lokale tool; (2) TOOL_RESULT is waarheid; Kies batch-varianten "
+"bij 'alle' of meerdere percelen; gebruik fuzzy-matching voor locatienamen"
+" en toon 'suggestie' als beschikbaar. Antwoord in 1–3 zinnen; bedragen in"
+" EUR; coördinaten als 'lat, lon' (6 decimalen)."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1926
+msgid ""
+"Voorbeelden: ‘waar ligt <locatie>’, ‘bbox van <locatie>’, ‘prijs per m2 "
+"van <locatie>’, ‘welke percelen missen documenten?’, ‘verkoopklaar top "
+"5’, ‘zoom op <locatie>’."
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1940
+msgid "🔍 Zoom op kaart"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1944
+#, python-brace-format
+msgid "📄 Typ: documenten van {loc}"
+msgstr ""
+
+#: pages/1_Percelenbeheer.py:1946
+#, python-brace-format
+msgid "ℹ️ Typ: samenvatting van {loc}"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:12
+msgid "⛔ Alleen admins hebben toegang tot dit scherm."
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:24
+msgid "👥 Gebruikersbeheer"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:29
+msgid "Gebruiker"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:32
+msgid "Rol"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:44
+#, python-brace-format
+msgid "Gebruiker '{naam}' verwijderd."
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:48
+msgid "➕ Gebruiker toevoegen"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:50
+msgid "Nieuwe gebruikersnaam"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:52
+msgid "Rol van nieuwe gebruiker"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:54
+msgid "Gebruiker toevoegen"
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:56
+msgid "Gebruiker bestaat al."
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:58
+msgid "Gebruikersnaam en wachtwoord zijn verplicht."
+msgstr ""
+
+#: pages/2_Beheer_Gebruikers.py:63
+#, python-brace-format
+msgid "Gebruiker '{naam}' toegevoegd."
+msgstr ""
+
