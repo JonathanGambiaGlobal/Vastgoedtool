@@ -32,12 +32,23 @@ def set_language(lang: str = "nl") -> Tuple[Callable[[str], str], Callable[[str,
 def language_selector(default: str = "nl") -> Tuple[Callable, Callable]:
     """Sidebar language switch + set_language. Gebruik:  _ , n_ = language_selector()"""
     current = st.session_state.get("lang", default)
+
     with st.sidebar:
-        st.markdown("### 🌐 Language")
+        # 🔸 Kop aanpassen aan actieve taal
+        heading = "Taal" if current == "nl" else "Language"
+        st.markdown(f"### 🌐 {heading}")
+
+        # 🔸 Opties (de namen van de talen laat je onvertaald)
         options = {"Nederlands": "nl", "English": "en"}
-        label = st.selectbox("Taal / Language", list(options.keys()),
-                             index=0 if current == "nl" else 1, key="__lang_select")
+        label = st.selectbox(
+            "",                           # leeg label → geen dubbele tekst
+            list(options.keys()),
+            index=0 if current == "nl" else 1,
+            key="__lang_select",
+            label_visibility="collapsed"  # ✅ verberg label
+        )
         lang = options[label]
+
     return set_language(lang)
 
 def get_ai_config():
@@ -547,8 +558,3 @@ def verdeel_winst(perceel_row: dict | pd.Series) -> pd.DataFrame:
         })
         datum += relativedelta(months=1)
     return pd.DataFrame(rows)
-
-
-
-
-
