@@ -11,8 +11,7 @@ from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from groq import Groq
 
-import utils
-
+# utils
 from utils import (
     get_ai_config,
     language_selector,
@@ -931,10 +930,4 @@ with tab_chat:
 
         st.session_state.chat_history_tools_dashboard.append({"role": "assistant", "content": answer})
 # ==== einde Groq-chatblok – Dashboard =========================================
-
-
-
-
-
-
 
