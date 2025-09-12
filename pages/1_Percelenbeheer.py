@@ -36,6 +36,9 @@ from auth import login_check
 # 🔐 login altijd eerst
 login_check()
 
+# Na login_check()
+is_admin = (st.session_state.get("rol") == "admin")
+
 RENTETYPES = {
     "monthly": _("maandelijks"),
     "yearly": _("jaarlijks"),
@@ -123,6 +126,7 @@ def migrate_percelen():
     }
 
     for perceel in st.session_state.get("percelen", []):
+        # --- dealstage normaliseren
         ds = perceel.get("dealstage")
         if not ds:
             perceel["dealstage"] = _("Aankoop")
@@ -131,6 +135,7 @@ def migrate_percelen():
             perceel["dealstage"] = old_to_new[ds]
             changed = True
 
+        # --- uploads velden borgen
         if "uploads" not in perceel:
             perceel["uploads"] = {}
             changed = True
@@ -138,11 +143,12 @@ def migrate_percelen():
             perceel["uploads_urls"] = {}
             changed = True
 
+        # --- investeerders fallback (oude rare vorm herstellen)
         investeerders = perceel.get("investeerders")
         if isinstance(investeerders, str) or (
             isinstance(investeerders, list)
             and len(investeerders) > 1
-            and all(isinstance(i.get("naam"), str) and len(i.get("naam")) == 1 for i in investeerders)
+            and all(isinstance(i.get("naam"), str) and len(i.get("naam")) == 1 for i in investeerders if isinstance(i, dict))
         ):
             perceel["investeerders"] = [{
                 "naam": _("Eigen beheer"),
@@ -154,6 +160,7 @@ def migrate_percelen():
             }]
             changed = True
 
+        # --- polygon coördinaten fix (UTM → lat/lon)
         polygon = perceel.get("polygon")
         if polygon and isinstance(polygon, list):
             if any(
@@ -168,16 +175,27 @@ def migrate_percelen():
                 perceel["polygon"] = polygon_converted
                 changed = True
 
+        # --- eigendomstype label harmoniseren
         if perceel.get("eigendomstype") in ["Customary land", "Freehold land"]:
             perceel["eigendomstype"] = _("Geregistreerd land")
             changed = True
 
-        opbrengst = perceel.get("verwachte_opbrengst_eur", 0) or 0
-        kosten = perceel.get("verwachte_kosten_eur", 0) or 0
-        aankoop = perceel.get("aankoopprijs_eur", 0) or 0
+        # --- 🆕 status_toelichting → status_updates (eenmalig, zodat niets verloren gaat)
+        su = perceel.get("status_toelichting")
+        if su and not perceel.get("status_updates"):
+            perceel["status_updates"] = [{
+                "datum": date.today().isoformat(),
+                "tekst": su.strip()
+            }]
+            perceel["status_toelichting"] = ""  # legacy leegmaken
+            changed = True
 
+        # --- verwachte_winst consistent bijwerken
+        opbrengst = perceel.get("verwachte_opbrengst_eur", 0) or 0
+        kosten   = perceel.get("verwachte_kosten_eur", 0) or 0
+        aankoop  = perceel.get("aankoopprijs_eur", 0) or 0
         berekende_winst = opbrengst - kosten - aankoop
-        huidige_winst = perceel.get("verwachte_winst_eur")
+        huidige_winst   = perceel.get("verwachte_winst_eur")
 
         if huidige_winst is None or huidige_winst == 0 or huidige_winst != berekende_winst:
             perceel["verwachte_winst_eur"] = berekende_winst
@@ -186,66 +204,10 @@ def migrate_percelen():
     if changed:
         save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.cache_data.clear()
-        st.success(_("✅ Migratie uitgevoerd: fasen gemapt, records opgeschoond en winst bijgewerkt."))
+        st.success(_("✅ Migratie uitgevoerd: fasen gemapt, records opgeschoond, winst én statusupdates bijgewerkt."))
         st.session_state["skip_load"] = True
         st.rerun()
 
-is_admin = st.session_state.get("rol") == "admin"
-
-if "history" not in st.session_state:
-    st.session_state["history"] = []
-
-def save_state():
-    if "history" not in st.session_state:
-        st.session_state["history"] = []
-    st.session_state["history"].append(copy.deepcopy(st.session_state["percelen"]))
-    print(f"[DEBUG] save_state called. History length: {len(st.session_state['history'])}")
-
-def undo():
-    if st.session_state.get("history"):
-        print(f"[DEBUG] undo called. History length before pop: {len(st.session_state['history'])}")
-        st.session_state["percelen"] = st.session_state["history"].pop()
-        st.write(_("🔄 Percelen na undo:"), st.session_state.get("percelen"))
-        print(f"[DEBUG] History length after pop: {len(st.session_state['history'])}")
-        st.write(_("🧪 Keys vóór reset:"), list(st.session_state.keys()))
-
-        prefixes = [
-            "edit_locatie_", "edit_lengte_", "edit_breedte_",
-            "dealstage_edit_", "eigendom_", "aankoopdatum_",
-            "aankoopprijs_eur_", "verkoopdatum_", "verkoopprijs_eur_",
-            "fase_", "upload_", "opslaan_bewerken_", "x_", "y_", "verwijder_"
-        ]
-
-        inv_prefixes = [
-            "inv_naam_edit_", "inv_bedrag_edit_", "inv_rente_edit_",
-            "inv_winst_edit_", "inv_type_edit_"
-        ]
-
-        all_keys = list(st.session_state.keys())
-        all_indices = []
-
-        for key in all_keys:
-            for prefix in prefixes + inv_prefixes:
-                if key.startswith(prefix):
-                    suffix = key[len(prefix):]
-                    if suffix.isdigit():
-                        all_indices.append(int(suffix))
-                    elif "_" in suffix and suffix.split("_")[0].isdigit():
-                        all_indices.append(int(suffix.split("_")[0]))
-
-        max_index = max(all_indices, default=0) + 5
-
-        for i in range(max_index):
-            for prefix in prefixes + inv_prefixes:
-                st.session_state.pop(f"{prefix}{i}", None)
-            for j in range(15):
-                for prefix in inv_prefixes:
-                    st.session_state.pop(f"{prefix}{i}_{j}", None)
-
-        st.session_state.pop("investeerders_input", None)
-        st.session_state["skip_load"] = True
-        st.write(_("🧼 Keys ná reset:"), list(st.session_state.keys()))
-        st.rerun()
 
 PIPELINE_FASEN = [
     _("Aankoop"),
@@ -287,6 +249,28 @@ if st.session_state.get("rerun_trigger") is True:
 st.markdown("""<script>window.scrollTo(0, 0);</script>""", unsafe_allow_html=True)
 st.title(_("Percelenbeheer"))
 
+def convert_dates_to_eu(percelen):
+    """Loop door alle percelen en zet datums om naar DD-MM-YYYY"""
+    for perceel in percelen:
+        # status updates
+        if "status_updates" in perceel:
+            for upd in perceel["status_updates"]:
+                if "datum" in upd and upd["datum"]:
+                    try:
+                        d = datetime.fromisoformat(upd["datum"])
+                        upd["datum"] = d.strftime("%d-%m-%Y")
+                    except:
+                        pass
+        # einddatum of andere losse datums
+        if "einddatum" in perceel and perceel["einddatum"]:
+            try:
+                d = datetime.fromisoformat(perceel["einddatum"])
+                perceel["einddatum"] = d.strftime("%d-%m-%Y")
+            except:
+                pass
+    return percelen
+
+# Percelen inladen
 if "percelen" not in st.session_state or st.session_state.get("skip_load") != True:
     loaded = load_percelen_from_json()
     percelen_valid = []
@@ -295,11 +279,18 @@ if "percelen" not in st.session_state or st.session_state.get("skip_load") != Tr
             percelen_valid.append(p)
         else:
             st.warning(_("Percel index {i} is ongeldig en wordt genegeerd.").format(i=i))
+
+    # Zet in session_state
     st.session_state.percelen = percelen_valid
 
+    # ➡️ Zet alle datums direct om naar Europese notatie
+    st.session_state.percelen = convert_dates_to_eu(st.session_state.percelen)
+
+    # defaults
     for perceel in st.session_state["percelen"]:
         perceel.setdefault("wordt_gesplitst", False)
         perceel.setdefault("dealstage", _("Aankoop"))
+
 
 # Sidebar invoer voor nieuw perceel
 st.sidebar.header(_("📝 Perceelinvoer"))
@@ -486,24 +477,9 @@ else:
         key="sb_verwachte_opbrengst",
     )
 
-kosten_qg = st.sidebar.number_input(
-    _("Verwachte kosten Quadraat Global (EUR)"),
-    min_value=0.0, format="%.2f", value=0.0,
-    key="sb_kosten_qg",
-)
-kosten_extern = st.sidebar.number_input(
-    _("Verwachte kosten Externen (EUR)"),
-    min_value=0.0, format="%.2f", value=0.0,
-    key="sb_kosten_extern",
-)
-verwachte_kosten = kosten_qg + kosten_extern
-st.sidebar.info(_("Totaal verwachte kosten: € {kosten:,.2f}").format(kosten=verwachte_kosten))
-
-status_toelichting = st.sidebar.text_area(
-    _("Status / toelichting"),
-    value="",
-    key="sb_status_toelichting",
-)
+st.sidebar.markdown("### " + _("📜 Eerste statusupdate (optioneel)"))
+status_datum = st.sidebar.date_input(_("Datum"), value=date.today(), key="sb_status_date")
+status_tekst = st.sidebar.text_area(_("Notitie"), value="", key="sb_status_text")
 
 # 👥 Investeerders
 st.sidebar.markdown("### " + _("👥 Investeerders"))
@@ -1051,7 +1027,7 @@ for i, perceel in enumerate(percelen):
         _k = perceel.get("wisselkoers") or locals().get("wisselkoers", None)
         aankoop_eur = float(perceel.get("aankoopprijs_eur", 0) or 0)
 
-        if perceel["strategie"] == _("Verkavelen en verkopen"):
+        if perceel.get("strategie") == "split_sell":
             try:
                 start_val = pd.to_datetime(perceel.get("start_verkooptraject"), errors="coerce").date()
                 if not pd.notnull(start_val):
@@ -1114,33 +1090,11 @@ for i, perceel in enumerate(percelen):
                 gmd=format_currency(perceel['opbrengst_per_maand_gmd'], "GMD")
             ))
 
-            # Kosten
-            st.markdown("#### " + _("💸 Kosten"))
-            kosten_qg = st.number_input(
-                _("Verwachte kosten Quadraat Global (EUR)"),
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_qg_eur", perceel.get("kosten_qg_eur", 0.0)) or 0.0),
-                format="%.2f",
-                key=f"verwachte_kosten_qg_{i}",
+            perceel["verwachte_winst_eur"] = (
+                totaal_opbrengst_eur
+                - perceel.get("verwachte_kosten_eur", 0.0)
+                - aankoop_eur
             )
-            kosten_extern = st.number_input(
-                _("Verwachte kosten Externen (EUR)"),
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_extern_eur", perceel.get("kosten_extern_eur", 0.0)) or 0.0),
-                format="%.2f",
-                key=f"verwachte_kosten_extern_{i}",
-            )
-            totaal_kosten = round((kosten_qg or 0) + (kosten_extern or 0), 2)
-            st.info(_("**Totaal verwachte kosten:** € {k:,.2f}").format(k=totaal_kosten))
-
-            perceel["verwachte_kosten_qg_eur"]     = kosten_qg
-            perceel["verwachte_kosten_extern_eur"] = kosten_extern
-            perceel["kosten_qg_eur"]               = kosten_qg
-            perceel["kosten_extern_eur"]           = kosten_extern
-            perceel["verwachte_kosten_eur"]        = totaal_kosten
-
-            perceel["verwachte_winst_eur"] = totaal_opbrengst_eur - totaal_kosten - aankoop_eur
-            st.success(_("📈 Netto verwachte winst: {eur}").format(eur=format_currency(perceel['verwachte_winst_eur'], "EUR")))
 
         else:
             perceel["verwachte_opbrengst_eur"] = st.number_input(
@@ -1151,32 +1105,11 @@ for i, perceel in enumerate(percelen):
                 key=f"verwachte_opbrengst_{i}",
             )
 
-            st.markdown("#### " + _("💸 Kosten"))
-            kosten_qg = st.number_input(
-                _("Verwachte kosten Quadraat Global (EUR)"),
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_qg_eur", perceel.get("kosten_qg_eur", 0.0)) or 0.0),
-                format="%.2f",
-                key=f"verwachte_kosten_qg_{i}",
+            perceel["verwachte_winst_eur"] = (
+                (perceel["verwachte_opbrengst_eur"] or 0.0)
+                - perceel.get("verwachte_kosten_eur", 0.0)
+                - aankoop_eur
             )
-            kosten_extern = st.number_input(
-                _("Verwachte kosten Externen (EUR)"),
-                min_value=0.0,
-                value=float(perceel.get("verwachte_kosten_extern_eur", perceel.get("kosten_extern_eur", 0.0)) or 0.0),
-                format="%.2f",
-                key=f"verwachte_kosten_extern_{i}",
-            )
-            totaal_kosten = round((kosten_qg or 0) + (kosten_extern or 0), 2)
-            st.info(_("**Totaal verwachte kosten:** € {k:,.2f}").format(k=totaal_kosten))
-
-            perceel["verwachte_kosten_qg_eur"]     = kosten_qg
-            perceel["verwachte_kosten_extern_eur"] = kosten_extern
-            perceel["kosten_qg_eur"]               = kosten_qg
-            perceel["kosten_extern_eur"]           = kosten_extern
-            perceel["verwachte_kosten_eur"]        = totaal_kosten
-
-            perceel["verwachte_winst_eur"] = (perceel["verwachte_opbrengst_eur"] or 0.0) - totaal_kosten - aankoop_eur
-            st.success(_("📈 Netto verwachte winst: {eur}").format(eur=format_currency(perceel['verwachte_winst_eur'], "EUR")))
 
         # Verwachte einddatum
         try:
@@ -1191,43 +1124,193 @@ for i, perceel in enumerate(percelen):
             key=f"doorlooptijd_{i}",
         ).isoformat()
 
-        perceel["status_toelichting"] = st.text_area(
-            _("📜 Status / toelichting"),
-            value=perceel.get("status_toelichting", ""),
-            key=f"status_toelichting_{i}",
-        )
+        # binnen: with st.expander(f"📍 {perceel['locatie']}", expanded=True):
 
-        # Opslaan + Verwijderen
-        if is_admin:
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                if st.button(_("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get('locatie')), key=f"opslaan_bewerken_{i}"):
-                    save_state()
+        # --- Kosten & Statusupdates tabs ---
+        tab_kosten, tab_updates = st.tabs([_("💸 Kosten"), _("📜 Statusupdates")])
+
+        # 💸 Kosten-tab
+        with tab_kosten:
+            st.markdown("#### " + _("💸 Kosten"))
+
+            items = perceel.get("kosten_items") or []
+            df = pd.DataFrame(items, columns=["omschrijving", "categorie", "bedrag_eur"])
+            if df.empty:
+                df = pd.DataFrame([{"omschrijving": "", "categorie": "QG", "bedrag_eur": 0.0}])
+
+            edited = st.data_editor(
+                df,
+                key=f"kosten_editor_{i}",
+                use_container_width=True,
+                num_rows="dynamic",
+                hide_index=True,
+                column_config={
+                    "omschrijving": st.column_config.TextColumn(_("Omschrijving")),
+                    "categorie": st.column_config.SelectboxColumn(_("Categorie"), options=["QG", "Extern"]),
+                    "bedrag_eur": st.column_config.NumberColumn(
+                        _("Bedrag (EUR)"), min_value=0.0, step=50.0, format="%.2f"
+                    ),
+                },
+            )
+
+            rows = edited.fillna({"omschrijving": "", "categorie": "QG", "bedrag_eur": 0.0}).to_dict("records")
+            perceel["kosten_items"] = rows
+
+            # totalen berekenen
+            kosten_qg     = round(sum(r["bedrag_eur"] for r in rows if r["categorie"] == "QG"), 2)
+            kosten_extern = round(sum(r["bedrag_eur"] for r in rows if r["categorie"] == "Extern"), 2)
+            totaal_kosten = round(kosten_qg + kosten_extern, 2)
+
+            perceel["verwachte_kosten_qg_eur"]     = kosten_qg
+            perceel["verwachte_kosten_extern_eur"] = kosten_extern
+            perceel["verwachte_kosten_eur"]        = totaal_kosten
+
+            aankoop_eur   = float(perceel.get("aankoopprijs_eur") or 0)
+            opbrengst_eur = float(perceel.get("verwachte_opbrengst_eur") or 0)
+            perceel["verwachte_winst_eur"] = round(opbrengst_eur - totaal_kosten - aankoop_eur, 2)
+
+            # samenvatting tonen
+            st.info(_("**Totaal QG-kosten:** € {v:,.2f}").format(v=kosten_qg))
+            st.info(_("**Totaal externe kosten:** € {v:,.2f}").format(v=kosten_extern))
+            st.info(_("**Totaal verwachte kosten:** € {v:,.2f}").format(v=totaal_kosten))
+            st.success(_("📈 Netto verwachte winst: € {v:,.2f}").format(v=perceel["verwachte_winst_eur"]))
+
+
+        # Admin-sectie: opslaan & perceel verwijderen
+            if is_admin:
+                col1, col2 = st.columns([8, 2])   # brede linker kolom, smalle rechterkolom
+
+                with col1:
+                    if st.button(
+                        _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get('locatie')),
+                        key=f"opslaan_bewerken_{i}"
+                    ):
+                        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                        st.cache_data.clear()
+                        st.success(
+                            _("Wijzigingen aan {loc} opgeslagen.").format(loc=perceel.get('locatie'))
+                        )
+
+                with col2:
+                    confirm_key = f"confirm_delete_{i}"
+                    if not st.session_state.get(confirm_key, False):
+                        if st.button(_("🗑 Verwijder perceel"), key=f"delete_{i}"):
+                            st.session_state[confirm_key] = True
+                    else:
+                        with st.error(
+                            _("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden.")
+                        ):
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
+                                    save_state()
+                                    st.session_state["percelen"].pop(i)
+                                    save_percelen_as_json(
+                                        prepare_percelen_for_saving(st.session_state["percelen"])
+                                    )
+                                    st.session_state.pop(confirm_key, None)
+                                    st.success(_("Perceel verwijderd."))
+                                    st.rerun()
+                            with c2:
+                                if st.button(_("↩ Nee, annuleren"), key=f"cancel_delete_{i}"):
+                                    st.session_state.pop(confirm_key, None)
+                                    st.info(_("Verwijderen geannuleerd."))
+            else:
+                st.info(_("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen."))
+
+
+
+        # 📜 Statusupdates-tab
+        with tab_updates:
+            st.caption("📜 Logboek van statusupdates")
+            perceel.setdefault("status_updates", [])
+
+            # CSS voor compacte knoppen
+            st.markdown("""
+            <style>
+            div[data-testid="stButton"] button {
+                padding: 2px 8px;
+                font-size: 13px;
+                border-radius: 6px;
+                margin: 0 2px;
+                height: 32px;
+            }
+            div[data-testid="stButton"] button:hover {
+                background-color: #f0f0f0;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Nieuwe notitie toevoegen
+            st.markdown("### ➕ Nieuwe update toevoegen")
+            col_date, col_txt = st.columns([1, 3])
+            with col_date:
+                new_dt = st.date_input("Datum", value=date.today(), key=f"su_new_date_{i}")
+            with col_txt:
+                new_txt = st.text_area("Nieuwe notitie", value="", key=f"su_new_text_{i}", height=100)
+
+
+            if st.button("➕ Voeg update toe", key=f"su_add_{i}"):
+                if new_txt.strip():
+                    perceel.setdefault("status_updates", [])
+                    perceel["status_updates"].append({
+                        "datum": new_dt.isoformat(),
+                        "tekst": new_txt.strip()
+                    })
                     save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
                     st.cache_data.clear()
-                    st.success(_("Wijzigingen aan {loc} opgeslagen.").format(loc=perceel.get('locatie')))
-            with col2:
-                confirm_key = f"confirm_delete_{i}"
-                if not st.session_state.get(confirm_key, False):
-                    if st.button(_("🗑 Verwijder"), key=f"delete_{i}"):
-                        st.session_state[confirm_key] = True
+                    st.success("✅ Update toegevoegd en opgeslagen.")
+                    st.rerun()
                 else:
-                    with st.error(_("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden.")):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
-                                save_state()
-                                st.session_state["percelen"].pop(i)
+                    st.warning("⚠️ Voer eerst een notitie in.")
+
+
+            st.markdown("---")
+
+            # Bestaande notities
+            if not perceel["status_updates"]:
+                st.info("Nog geen statusupdates. Voeg de eerste toe hierboven.")
+            else:
+                for j, upd in enumerate(perceel["status_updates"]):
+                    note_key = f"note_{i}_{j}"  # uniek per perceel en notitie
+
+                    # rij: datum links, knoppen rechts strak naast elkaar
+                    col1, col2 = st.columns([8, 2])
+
+                    with col1:
+                        st.markdown(f"📅 {upd.get('datum','?')} — Notitie #{j+1}")
+
+                    with col2:
+                        k1, k2, k3 = st.columns(3, gap="small")
+                        with k1:
+                            if st.button("📂", key=f"toggle_{note_key}", help="Open/sluit"):
+                                st.session_state[note_key] = not st.session_state.get(note_key, False)
+                        with k2:
+                            if st.button("💾", key=f"save_{note_key}", help="Bijwerken"):
+                                if st.session_state.get(f"txt_{note_key}"):
+                                    upd["tekst"] = st.session_state[f"txt_{note_key}"]
+                                    st.success("Notitie bijgewerkt (opslaan om definitief te maken).")
+                        with k3:
+                            if st.button("🗑", key=f"status_del_{i}_{j}"):
+                                perceel["status_updates"].pop(j)
                                 save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
-                                st.session_state.pop(confirm_key, None)
-                                st.success(_("Perceel verwijderd."))
+                                st.cache_data.clear()
+                                st.success("✅ Notitie verwijderd.")
                                 st.rerun()
-                        with c2:
-                            if st.button(_("↩ Nee, annuleren"), key=f"cancel_delete_{i}"):
-                                st.session_state.pop(confirm_key, None)
-                                st.info(_("Verwijderen geannuleerd."))
-        else:
-            st.info(_("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen."))
+
+                    # notitietekst alleen tonen bij openen
+                    if st.session_state.get(note_key, False):
+                        nieuwe_txt = st.text_area(
+                            "📝 Tekst",
+                            value=upd.get("tekst",""),
+                            key=f"txt_{note_key}",
+                            height=120
+                        )
+                        upd["tekst"] = nieuwe_txt
+
+
+            
+
 
 # 📍 Coördinaten invoer
 st.sidebar.markdown("### " + _("📍 Coördinaten invoer"))
@@ -1320,8 +1403,7 @@ if is_admin and toevoegen:
             opbrengst_per_maand_eur = 0.0
             opbrengst_per_maand_gmd = 0.0
 
-        verwachte_kosten = kosten_qg + kosten_extern
-        verwachte_winst_eur = totaal_opbrengst_eur - verwachte_kosten - aankoopprijs_eur
+        verwachte_winst_eur = totaal_opbrengst_eur - verwachte_kosten_eur - aankoopprijs_eur
 
         perceel = {
             "locatie": locatie,
@@ -1347,13 +1429,17 @@ if is_admin and toevoegen:
 
             "strategie": strategie,
             "verwachte_opbrengst_eur": totaal_opbrengst_eur,
-            "kosten_qg_eur": kosten_qg,
-            "kosten_extern_eur": kosten_extern,
-            "verwachte_kosten_eur": verwachte_kosten,
             "verwachte_winst_eur": verwachte_winst_eur,
             "doorlooptijd": doorlooptijd_datum.isoformat() if isinstance(doorlooptijd_datum, date) else "",
             "start_verkooptraject": start_traject.strftime("%Y-%m-%d") if isinstance(start_traject, date) else None,
-            "status_toelichting": status_toelichting,
+
+            # ✅ nieuwe status-historie
+            "status_updates": (
+                [{"datum": status_datum.isoformat(), "tekst": status_tekst.strip()}]
+                if status_tekst.strip() else []
+            ),
+            "status_toelichting": "",  # legacy leeg
+
 
             "aantal_plots": aantal_kavels,
             "prijs_per_plot_eur": prijs_per_plot_eur,
@@ -1950,6 +2036,7 @@ with tab_chat:
         st.session_state.chat_history_tools_beheer.append({"role": "assistant", "content": answer})
 
 # ==== einde Groq-chatblok – Percelenbeheer ====================================
+
 
 
 
