@@ -323,7 +323,12 @@ verkoopprijs_eur = 0.0
 verkoopprijs = 0
 wordt_gesplitst = False
 
-aankoopdatum = st.sidebar.date_input(_("🗕️ Aankoopdatum"), value=date.today())
+aankoopdatum = st.sidebar.date_input(
+    _("🗓️ Aankoopdatum"),
+    value=date.today(),
+    format="DD-MM-YYYY",   # toon in EU-notatie
+    key="sidebar_aankoop"
+)
 
 invoer_valuta = st.sidebar.radio(_("Valuta aankoopprijs"), ["EUR", "GMD"], horizontal=True)
 valutasymbool = "€" if invoer_valuta == "EUR" else "GMD"
@@ -353,15 +358,34 @@ else:
 
 if snel_verkocht:
     st.sidebar.markdown("### " + _("💰 Verkoopgegevens (historisch)"))
-    verkoopdatum = st.sidebar.date_input(_("🗓️ Verkoopdatum"), value=date.today())
-    verkoopprijs_eur = st.sidebar.number_input(_("💶 Verkoopprijs (EUR)"), min_value=0.0, format="%.2f", value=0.0)
+    
+    verkoopdatum = st.sidebar.date_input(
+        _("🗓️ Verkoopdatum"),
+        value=date.today(),
+        format="DD-MM-YYYY",    # toon in EU-notatie
+        key="sidebar_verkoop"
+    )
+    
+    verkoopprijs_eur = st.sidebar.number_input(
+        _("💶 Verkoopprijs (EUR)"),
+        min_value=0.0,
+        format="%.2f",
+        value=0.0
+    )
+    
     if wisselkoers:
         verkoopprijs = round(verkoopprijs_eur * wisselkoers)
-        st.sidebar.info(_("≈ {prijs} (koers: {koers:.2f})").format(
-            prijs=format_currency(verkoopprijs, "GMD"), koers=wisselkoers))
+        st.sidebar.info(
+            _("≈ {prijs} (koers: {koers:.2f})").format(
+                prijs=format_currency(verkoopprijs, "GMD"),
+                koers=wisselkoers
+            )
+        )
     else:
         verkoopprijs = 0
-        st.sidebar.warning(_("⚠️ Wisselkoers niet beschikbaar — GMD niet omgerekend."))
+        st.sidebar.warning(
+            _("⚠️ Wisselkoers niet beschikbaar — GMD niet omgerekend.")
+        )
 else:
     verkoopdatum = None
     verkoopprijs = 0
@@ -382,13 +406,15 @@ strategie = st.sidebar.selectbox(_("Doel met dit perceel"), strategieopties)
 start_traject = st.sidebar.date_input(
     _("🗓️ Start verkooptraject"),
     value=date.today(),
+    format="DD-MM-YYYY",              # toon in EU-notatie
     key="start_verkooptraject_sidebar"
 )
 
 # 📅 Einddatum kiezen
 doorlooptijd_datum = st.sidebar.date_input(
-    _("Verwachte einddatum"),
+    _("🗓️ Verwachte einddatum"),
     value=date.today(),
+    format="DD-MM-YYYY",              # toon in EU-notatie
     key="doorlooptijd_sidebar"
 )
 
@@ -478,7 +504,12 @@ else:
     )
 
 st.sidebar.markdown("### " + _("📜 Eerste statusupdate (optioneel)"))
-status_datum = st.sidebar.date_input(_("Datum"), value=date.today(), key="sb_status_date")
+status_datum = st.sidebar.date_input(
+    _("📅 Datum"),
+    value=date.today(),
+    format="DD-MM-YYYY",      # toon in EU-notatie
+    key="sb_status_date"
+)
 status_tekst = st.sidebar.text_area(_("Notitie"), value="", key="sb_status_text")
 
 # 👥 Investeerders
@@ -730,8 +761,10 @@ st.markdown("""
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.selector .stButton>button:hover { border-color: #00b39420; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
-.selector .active>button { background: #E8FFF7; border-color: #00b39466; }
+.selector .stButton>button:hover {
+  border-color: #00b39420;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -747,19 +780,14 @@ for rij in chunk(locaties, per_row):
     cols = st.columns(per_row)
     st.markdown("<div class='row'></div>", unsafe_allow_html=True)
     for col, loc in zip(cols, rij):
-        is_active = (st.session_state.get("active_locatie") == loc)
         with col:
-            if is_active:
-                st.markdown("<div class='active'>", unsafe_allow_html=True)
-            label = f"✅ {loc}" if is_active else f"📍 {loc}"
-            if st.button(label, key=f"btn_{loc}", use_container_width=True):
+            if st.button(f"📍 {loc}", key=f"btn_{loc}", use_container_width=True):
                 st.session_state["active_locatie"] = loc
                 st.rerun()
-            if is_active:
-                st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
+# Keuze ophalen
 keuze = st.session_state.get("active_locatie")
 
 # ===== Centrale afhandeling van ?del= en ?delask= =====
@@ -822,13 +850,32 @@ for i, perceel in enumerate(percelen):
         perceel["eigendomstype"] = st.selectbox(_("Eigendomsvorm"), [_("Geregistreerd land")], index=0, key=f"eigendom_{i}")
         st.caption(_("ℹ️ Zowel *Customary land* als *Freehold land* worden in Gambia na registratie gelijk behandeld."))
 
+
+        perceel["aankoopprijs_eur"] = st.number_input(
+            _("Aankoopprijs (EUR)"),
+            min_value=0.0,
+            value=float(perceel.get("aankoopprijs_eur", 0.0)),
+            format="%.2f",
+            step=1000.0,
+            key=f"aankoopprijs_{i}",
+        )
+
         try:
             aankoopdatum_value = pd.to_datetime(perceel.get("aankoopdatum"), errors="coerce").date()
             if not pd.notnull(aankoopdatum_value):
                 aankoopdatum_value = date.today()
         except Exception:
             aankoopdatum_value = date.today()
-        perceel["aankoopdatum"] = st.date_input(_("🗓️ Aankoopdatum"), value=aankoopdatum_value, key=f"aankoopdatum_{i}").isoformat()
+
+        gekozen_datum = st.date_input(
+            _("🗓️ Aankoopdatum"),
+            value=aankoopdatum_value,
+            format="DD-MM-YYYY",     # EU-notatie tonen
+            key=f"aankoopdatum_{i}"
+        )
+
+        # Opslaan in ISO (veilig voor JSON/parsing)
+        perceel["aankoopdatum"] = gekozen_datum.isoformat()
 
         # Investeerders
         st.markdown("#### " + _("👥 Investeerders"))
@@ -900,9 +947,17 @@ for i, perceel in enumerate(percelen):
                 )
         perceel["investeerders"] = nieuwe_investeerders
 
-        # Documenten
+        # 📋 Documenten
         st.markdown("#### " + _("📋 Documenten"))
         vereiste_docs = get_vereiste_documenten(perceel, huidige_fase)
+
+        # ⏪ behoud bestaande waarden
+        perceel.setdefault("uploads", {})
+        perceel.setdefault("uploads_urls", {})
+
+        oude_uploads = dict(perceel["uploads"])
+        oude_urls    = dict(perceel["uploads_urls"])
+
         nieuwe_uploads, nieuwe_uploads_urls = {}, {}
 
         for doc in vereiste_docs:
@@ -910,13 +965,13 @@ for i, perceel in enumerate(percelen):
             with col1:
                 nieuwe_uploads[doc] = st.checkbox(
                     _("{doc} aanwezig?").format(doc=doc),
-                    value=perceel.get("uploads", {}).get(doc, False),
+                    value=oude_uploads.get(doc, False),
                     key=f"upload_{i}_{doc}"
                 )
             with col2:
                 nieuwe_uploads_urls[doc] = st.text_input(
                     _("Link naar {doc}").format(doc=doc),
-                    value=perceel.get("uploads_urls", {}).get(doc, ""),
+                    value=oude_urls.get(doc, ""),
                     key=f"upload_url_{i}_{doc}"
                 )
                 if nieuwe_uploads[doc] and nieuwe_uploads_urls[doc]:
@@ -925,8 +980,9 @@ for i, perceel in enumerate(percelen):
                         unsafe_allow_html=True,
                     )
 
-        perceel["uploads"] = nieuwe_uploads
-        perceel["uploads_urls"] = nieuwe_uploads_urls
+        # ✅ update in plaats van overschrijven
+        perceel["uploads"].update(nieuwe_uploads)
+        perceel["uploads_urls"].update(nieuwe_uploads_urls)
 
         # Pipeline & navigatie
         st.markdown(render_pipeline(huidige_fase))
@@ -960,7 +1016,15 @@ for i, perceel in enumerate(percelen):
                     verkoop_value = date.today()
             except Exception:
                 verkoop_value = date.today()
-            perceel["verkoopdatum"] = st.date_input(_("🗓️ Verkoopdatum"), value=verkoop_value, key=f"verkoopdatum_{i}").isoformat()
+
+            gekozen_verkoopdatum = st.date_input(
+                _("🗓️ Verkoopdatum"),
+                value=verkoop_value,
+                format="DD-MM-YYYY",   # toon in EU-notatie
+                key=f"verkoopdatum_{i}"
+            )
+
+            perceel["verkoopdatum"] = gekozen_verkoopdatum.isoformat()
 
             _koers = perceel.get("wisselkoers") or locals().get("wisselkoers", None)
             valuta_keuze_verkocht = st.radio(_("Valuta verkoopprijs"), ["EUR", "GMD"], horizontal=True, key=f"valuta_verkoop_{i}")
@@ -1034,7 +1098,17 @@ for i, perceel in enumerate(percelen):
                     start_val = date.today()
             except Exception:
                 start_val = date.today()
-            perceel["start_verkooptraject"] = st.date_input(_("🗓️ Start verkooptraject"), value=start_val, key=f"start_verkooptraject_{i}").isoformat()
+
+            gekozen_start = st.date_input(
+                _("🗓️ Start verkooptraject"),
+                value=start_val,
+                format="DD-MM-YYYY",   # toon in EU-notatie
+                key=f"start_verkooptraject_{i}"
+            )
+
+            # Opslaan in ISO (veilig voor opslag/parsing)
+            perceel["start_verkooptraject"] = gekozen_start.isoformat()
+
 
             perceel["aantal_plots"] = st.number_input(
                 _("Aantal kavels"),
@@ -1118,11 +1192,16 @@ for i, perceel in enumerate(percelen):
                 eind_value = date.today()
         except Exception:
             eind_value = date.today()
-        perceel["doorlooptijd"] = st.date_input(
-            _("Verwachte einddatum"),
+
+        gekozen_eind = st.date_input(
+            _("🗓️ Verwachte einddatum"),
             value=eind_value,
-            key=f"doorlooptijd_{i}",
-        ).isoformat()
+            format="DD-MM-YYYY",   # toon in EU-notatie
+            key=f"doorlooptijd_{i}"
+        )
+
+        # Opslaan in ISO (veilig voor JSON/parsing en Power BI)
+        perceel["doorlooptijd"] = gekozen_eind.isoformat()
 
         # binnen: with st.expander(f"📍 {perceel['locatie']}", expanded=True):
 
@@ -1244,17 +1323,23 @@ for i, perceel in enumerate(percelen):
             # Nieuwe notitie toevoegen
             st.markdown("### ➕ Nieuwe update toevoegen")
             col_date, col_txt = st.columns([1, 3])
+
             with col_date:
-                new_dt = st.date_input("Datum", value=date.today(), key=f"su_new_date_{i}")
+                new_dt = st.date_input(
+                    _("📅 Datum"),
+                    value=date.today(),
+                    format="DD-MM-YYYY",     # toon in EU-notatie
+                    key=f"su_new_date_{i}"
+                )
+
             with col_txt:
                 new_txt = st.text_area("Nieuwe notitie", value="", key=f"su_new_text_{i}", height=100)
-
 
             if st.button("➕ Voeg update toe", key=f"su_add_{i}"):
                 if new_txt.strip():
                     perceel.setdefault("status_updates", [])
                     perceel["status_updates"].append({
-                        "datum": new_dt.isoformat(),
+                        "datum": new_dt.isoformat(),   # opslaan in ISO (2025-09-19)
                         "tekst": new_txt.strip()
                     })
                     save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
@@ -1263,7 +1348,6 @@ for i, perceel in enumerate(percelen):
                     st.rerun()
                 else:
                     st.warning("⚠️ Voer eerst een notitie in.")
-
 
             st.markdown("---")
 
@@ -2036,6 +2120,7 @@ with tab_chat:
         st.session_state.chat_history_tools_beheer.append({"role": "assistant", "content": answer})
 
 # ==== einde Groq-chatblok – Percelenbeheer ====================================
+
 
 
 
