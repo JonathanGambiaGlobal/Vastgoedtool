@@ -1,4 +1,4 @@
-streamlit
+streamlit>=1.26.0
 pandas
 numpy
 requests
@@ -12,6 +12,7 @@ streamlit-folium
 folium
 groq>=0.9
 Babel==2.15.0
+
 
 
 
