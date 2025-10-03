@@ -98,6 +98,7 @@ st.markdown(
             width: 100vw;  
             /* Centreer en schuif 40px naar rechts om de sidebar te compenseren */
             margin-left: calc(-50vw + 50% + 40px);  
+            position: relative; /* nodig om overlay te positioneren */
         }
         .pbi-wrapper iframe {
             width: 100%;
@@ -105,17 +106,27 @@ st.markdown(
             border: none;
             display: block;
         }
+        /* Overlay om alleen de onderste balk af te dekken */
+        .pbi-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;   /* pas dit getal aan: meestal 58–65px */
+            background-color: #FFFFFF;
+            z-index: 2;
+        }
     </style>
 
     <div class="pbi-wrapper">
         <iframe title="PBI extensie Gambia, dashboard"
-                src="https://app.powerbi.com/view?r=eyJrIjoiYTZjNGYzYWQtZTUwOS00ZjRmLWEzNDUtMDc5Njc3YjQ5ODE4IiwidCI6IjE5ZjY4NTk4LWZiMzUtNDVhMS1hNzEwLTA1NmI1NTFlODkyZCIsImMiOjl9&pageName=657908c8083714fca2c4"
+                src="https://app.powerbi.com/view?r=eyJrIjoiYTZjNGYzYWQtZTUwOS00ZjRmLWEzNDUtMDc5Njc3YjQ5ODE4IiwidCI6IjE5ZjY4NTk4LWZiMzUtNDVhMS1hNzEwLTA1NmI1NTFlODkyZCIsImMiOjl9&pageName=657908c8083714fca2c4&navContentPaneEnabled=false&filterPaneEnabled=false&toolbarEnabled=false"
                 allowFullScreen="true"></iframe>
+        <div class="pbi-overlay"></div>
     </div>
     """,
     unsafe_allow_html=True
 )
-
 
 # 💬 Chat-tab
 tab_chat, = st.tabs([_("💬 Chat (Groq)")])
@@ -558,3 +569,5 @@ with tab_chat:
 
         st.session_state.chat_history_tools_dashboard.append({"role": "assistant", "content": answer})
 # ==== einde Groq-chatblok – Dashboard =========================================
+
+
