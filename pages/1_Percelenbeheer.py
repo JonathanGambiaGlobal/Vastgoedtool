@@ -1442,7 +1442,7 @@ else:
     toevoegen = False
 
 if is_admin and toevoegen:
-    save_state()  
+    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
 
     if not locatie:
         st.sidebar.error(_("❗ Vul een locatie in."))
