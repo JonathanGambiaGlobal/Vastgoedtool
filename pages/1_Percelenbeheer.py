@@ -1487,7 +1487,7 @@ if is_admin and toevoegen:
             opbrengst_per_maand_eur = 0.0
             opbrengst_per_maand_gmd = 0.0
 
-        verwachte_winst_eur = (totaal_opbrengst_eur or 0) - (verwachte_kosten_eur or 0) - (aankoopprijs_eur or 0)
+        verwachte_winst_eur = float(totaal_opbrengst_eur or 0) - float(aankoopprijs_eur or 0)
 
         perceel = {
             "locatie": locatie,
