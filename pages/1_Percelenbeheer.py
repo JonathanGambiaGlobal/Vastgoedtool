@@ -1287,6 +1287,7 @@ for i, perceel in enumerate(percelen):
                                     save_percelen_as_json(
                                         prepare_percelen_for_saving(st.session_state["percelen"])
                                     )
+                                    st.cache_data.clear()
                                     st.session_state.pop(confirm_key, None)
                                     st.success(_("Perceel verwijderd."))
                                     st.rerun()
