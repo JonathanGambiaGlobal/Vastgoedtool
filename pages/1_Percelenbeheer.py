@@ -1498,7 +1498,11 @@ if is_admin and toevoegen:
             "lengte": lengte,
             "breedte": breedte,
             "eigendomstype": eigendomstype,
-            "polygon": polygon_coords,
+            "polygon": [
+                [lat, lon] if abs(lat) <= 90 else [lon, lat]
+                for lat, lon in polygon_coords
+                if lat is not None and lon is not None
+            ],
 
             "uploads": uploads,
             "uploads_urls": uploads_urls,
