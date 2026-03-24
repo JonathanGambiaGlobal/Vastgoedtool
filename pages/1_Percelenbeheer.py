@@ -1282,7 +1282,7 @@ for i, perceel in enumerate(percelen):
                             c1, c2 = st.columns(2)
                             with c1:
                                 if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
-                                    save_state()
+                                    
                                     st.session_state["percelen"].pop(i)
                                     save_percelen_as_json(
                                         prepare_percelen_for_saving(st.session_state["percelen"])
