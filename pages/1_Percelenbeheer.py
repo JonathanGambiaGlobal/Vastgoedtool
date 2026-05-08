@@ -8,8 +8,6 @@ from utils import (
     get_ai_config,
     language_selector,
     get_exchange_rate_eur_to_gmd,
-    store.save_percelen,
-    load_percelen_from_json,
     render_pipeline,
     format_currency,
 )
