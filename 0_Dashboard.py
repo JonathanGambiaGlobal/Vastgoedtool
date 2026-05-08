@@ -18,7 +18,6 @@ from utils import (
     build_rentebetalingen,
     get_exchange_rate_eur_to_gmd,
     get_exchange_rate_volatility,
-    load_percelen_from_json,
     format_currency,
     analyse_portfolio_perceel,
     analyse_verkocht_perceel,
