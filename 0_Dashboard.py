@@ -25,6 +25,8 @@ from utils import (
     verdeel_winst,
 )
 
+from datastore import store
+
 # auth
 from auth import login_check
 
@@ -68,7 +70,7 @@ def groq_chat(messages, *, model: str | None = None) -> str:
 
 # --- Data laden ---
 if "percelen" not in st.session_state or not st.session_state["percelen"]:
-    st.session_state["percelen"] = load_percelen_from_json()
+    st.session_state["percelen"] = store.load_percelen()
 
 # --- Titel & Koersen ---
 st.title(_("Vastgoeddashboard – Gambia"))
