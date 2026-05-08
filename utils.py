@@ -198,50 +198,6 @@ def beoordeel_perceel_modulair(row: pd.Series, marktprijzen_df: pd.DataFrame, ho
     advies = _("Kopen") if score >= 2 else _("Mijden") if score <= -1 else _("Twijfel")
     return score, ", ".join(toelichting), advies
 
-# 🔗 6. Google Sheets verbinding
-def get_worksheet(sheet_name: str = None, tabblad: str = "Blad1") -> gspread.Worksheet:
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    g = st.secrets["gspread"]
-    creds_dict = {
-        "type":                        g["type"],
-        "project_id":                  g["project_id"],
-        "private_key_id":              g["private_key_id"],
-        "private_key":                 g["private_key"].replace("\\n", "\n"),
-        "client_email":                g["client_email"],
-        "client_id":                   g["client_id"],
-        "auth_uri":                    g["auth_uri"],
-        "token_uri":                   g["token_uri"],
-        "auth_provider_x509_cert_url": g["auth_provider_x509_cert_url"],
-        "client_x509_cert_url":        g["client_x509_cert_url"],
-    }
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-    sheet_id = g.get("sheet_id")
-    if sheet_id:
-        spreadsheet = client.open_by_key(sheet_id)
-    elif sheet_name:
-        spreadsheet = client.open(sheet_name)
-    else:
-        raise ValueError(_("Geen sheet_id in secrets en geen sheet_name opgegeven."))
-    return spreadsheet.worksheet(tabblad)
-
-# 📥 7. Percelen opslaan en laden via JSON
-def save_percelen_as_json(percelen: list[dict]) -> None:
-    ws = get_worksheet()
-    ws.clear()
-    ws.append_row(["json_data"])
-    for perceel in percelen:
-        json_str = json.dumps(perceel, ensure_ascii=False, default=str)
-        ws.append_row([json_str])
-
-@st.cache_data(ttl=60)
-def load_percelen_from_json() -> list[dict]:
-    ws = get_worksheet()
-    rows = ws.get_all_values()
-    if not rows or len(rows[0]) == 0 or rows[0][0] != "json_data":
-        return []
-    return [json.loads(row[0]) for row in rows[1:] if row and row[0].strip()]
-
 # 🌍 8. DataFrame met hoofdregio’s in Gambia
 hoofdsteden_df = pd.DataFrame([
     {"regio": "Banjul", "Latitude": 13.4549, "Longitude": -16.5790},
