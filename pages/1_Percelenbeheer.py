@@ -8,11 +8,13 @@ from utils import (
     get_ai_config,
     language_selector,
     get_exchange_rate_eur_to_gmd,
-    save_percelen_as_json,
+    store.save_percelen,
     load_percelen_from_json,
     render_pipeline,
     format_currency,
 )
+
+from datastore import store
 
 # 🌐 taal instellen
 _, n_ = language_selector()
@@ -202,7 +204,7 @@ def migrate_percelen():
             changed = True
 
     if changed:
-        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+        store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.cache_data.clear()
         st.success(_("✅ Migratie uitgevoerd: fasen gemapt, records opgeschoond, winst én statusupdates bijgewerkt."))
         st.session_state["skip_load"] = True
@@ -272,7 +274,7 @@ def convert_dates_to_eu(percelen):
 
 # Percelen inladen
 if "percelen" not in st.session_state or st.session_state.get("skip_load") != True:
-    loaded = load_percelen_from_json()
+    loaded = store.load_percelen()
     percelen_valid = []
     for i, p in enumerate(loaded):
         if isinstance(p, dict):
@@ -735,7 +737,7 @@ with col_undo:
 
 with col_reload:
     if st.button(_("📤 Percelen opnieuw laden"), key="reload_main", use_container_width=True):
-        st.session_state["percelen"] = load_percelen_from_json()
+        st.session_state["percelen"] = store.load_percelen()
         st.success(_("Percelen zijn opnieuw geladen."))
         st.session_state.pop("skip_load", None)
         st.rerun()
@@ -798,7 +800,7 @@ if "del" in _qp:
         if 0 <= idx < len(st.session_state["percelen"]):
             save_state()
             st.session_state["percelen"].pop(idx)
-            save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+            store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
             st.success(_("Perceel verwijderd."))
     except Exception:
         st.error(_("Verwijderen mislukt."))
@@ -995,7 +997,7 @@ for i, perceel in enumerate(percelen):
                 vorige_fase = _PIPELINE_FASEN[fase_index - 1]
                 if st.button(_("⬅️ Vorige fase ({fase})").format(fase=vorige_fase), key=f"vorige_fase_{i}"):
                     perceel["dealstage"] = vorige_fase
-                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
                     st.session_state["skip_load"] = True
                     st.rerun()
         with col_f2:
@@ -1003,7 +1005,7 @@ for i, perceel in enumerate(percelen):
                 volgende_fase = _PIPELINE_FASEN[fase_index + 1]
                 if st.button(_("➡️ Volgende fase ({fase})").format(fase=volgende_fase), key=f"volgende_fase_{i}"):
                     perceel["dealstage"] = volgende_fase
-                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
                     st.session_state["skip_load"] = True
                     st.rerun()
 
@@ -1264,7 +1266,7 @@ for i, perceel in enumerate(percelen):
                         _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get('locatie')),
                         key=f"opslaan_bewerken_{i}"
                     ):
-                        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                        store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
                         st.cache_data.clear()
                         st.success(
                             _("Wijzigingen aan {loc} opgeslagen.").format(loc=perceel.get('locatie'))
@@ -1284,7 +1286,7 @@ for i, perceel in enumerate(percelen):
                                 if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
                                     
                                     st.session_state["percelen"].pop(i)
-                                    save_percelen_as_json(
+                                    store.save_percelen(
                                         prepare_percelen_for_saving(st.session_state["percelen"])
                                     )
                                     st.cache_data.clear()
@@ -1343,7 +1345,7 @@ for i, perceel in enumerate(percelen):
                         "datum": new_dt.isoformat(),   # opslaan in ISO (2025-09-19)
                         "tekst": new_txt.strip()
                     })
-                    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                    store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
                     st.cache_data.clear()
                     st.success("✅ Update toegevoegd en opgeslagen.")
                     st.rerun()
@@ -1378,7 +1380,7 @@ for i, perceel in enumerate(percelen):
                         with k3:
                             if st.button("🗑", key=f"status_del_{i}_{j}"):
                                 perceel["status_updates"].pop(j)
-                                save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+                                store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
                                 st.cache_data.clear()
                                 st.success("✅ Notitie verwijderd.")
                                 st.rerun()
@@ -1443,7 +1445,7 @@ else:
     toevoegen = False
 
 if is_admin and toevoegen:
-    save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+    store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
 
     if not locatie:
         st.sidebar.error(_("❗ Vul een locatie in."))
@@ -1541,7 +1543,7 @@ if is_admin and toevoegen:
         }
 
         st.session_state.percelen.append(perceel)
-        save_percelen_as_json(prepare_percelen_for_saving(st.session_state["percelen"]))
+        store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
         st.sidebar.success(_("Perceel '{loc}' toegevoegd en opgeslagen.").format(loc=locatie))
 
         st.session_state["skip_load"] = False
