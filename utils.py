@@ -1,3 +1,4 @@
+from supabase import create_client, Client
 import pandas as pd
 import pydeck as pdk
 import numpy as np
@@ -50,6 +51,20 @@ def language_selector(default: str = "nl") -> Tuple[Callable, Callable]:
         lang = options[label]
 
     return set_language(lang)
+
+# =========================
+# SUPABASE
+# =========================
+
+@st.cache_resource
+def get_supabase() -> Client:
+    url = st.secrets.get("SUPABASE_URL")
+    key = st.secrets.get("SUPABASE_KEY")
+
+    if not url or not key:
+        raise ValueError("SUPABASE_URL of SUPABASE_KEY ontbreekt")
+
+    return create_client(url, key)
 
 def get_ai_config():
     """Zoekt de [ai] sectie in config.toml of .streamlit/config.toml."""
