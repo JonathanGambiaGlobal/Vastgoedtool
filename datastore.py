@@ -1,9 +1,6 @@
 from supabase import create_client
 import streamlit as st
 
-st.write(st.secrets)
-st.stop()
-
 
 class DataStore:
     def __init__(self):
