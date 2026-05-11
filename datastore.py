@@ -6,7 +6,7 @@ class DataStore:
     def __init__(self):
         self.client = create_client(
             st.secrets["SUPABASE_URL"],
-            st.secrets["SUPABASE_KEY"]
+            st.secrets["SUPABASE_ANON_KEY"]
         )
 
     def load_percelen(self):
