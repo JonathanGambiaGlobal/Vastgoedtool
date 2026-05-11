@@ -1,20 +1,31 @@
+from supabase import create_client
+import streamlit as st
+
+
 class DataStore:
-    def load_percelen(self):
-        raise NotImplementedError
-
-    def save_percelen(self, percelen):
-        raise NotImplementedError
-
-
-class MemoryStore(DataStore):
     def __init__(self):
-        self._percelen = []
+        self.client = create_client(
+            st.secrets["SUPABASE_URL"],
+            st.secrets["SUPABASE_KEY"]
+        )
 
     def load_percelen(self):
-        return self._percelen
+        response = (
+            self.client
+            .table("percelen")
+            .select("perceel")
+            .execute()
+        )
+
+        return [row["perceel"] for row in response.data]
 
     def save_percelen(self, percelen):
-        self._percelen = percelen
+        self.client.table("percelen").delete().neq("id", "").execute()
+
+        rows = [{"perceel": p} for p in percelen]
+
+        if rows:
+            self.client.table("percelen").insert(rows).execute()
 
 
-store = MemoryStore()
+store = DataStore()
