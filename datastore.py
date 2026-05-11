@@ -1,8 +1,3 @@
-from utils import (
-    load_percelen_from_json,
-    save_percelen_as_json,
-)
-
 class DataStore:
     def load_percelen(self):
         raise NotImplementedError
@@ -11,12 +6,15 @@ class DataStore:
         raise NotImplementedError
 
 
-class GoogleSheetsStore(DataStore):
+class MemoryStore(DataStore):
+    def __init__(self):
+        self._percelen = []
+
     def load_percelen(self):
-        return load_percelen_from_json()
+        return self._percelen
 
     def save_percelen(self, percelen):
-        return save_percelen_as_json(percelen)
+        self._percelen = percelen
 
 
-store = GoogleSheetsStore()
+store = MemoryStore()
