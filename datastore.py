@@ -17,11 +17,16 @@ class DataStore:
             .execute()
         )
 
+        if not response.data:
+            return []
+
         return [row["perceel"] for row in response.data]
 
     def save_percelen(self, percelen):
+        # verwijder oude records
         self.client.table("percelen").delete().neq("id", "").execute()
 
+        # voeg nieuwe records toe
         rows = [{"perceel": p} for p in percelen]
 
         if rows:
