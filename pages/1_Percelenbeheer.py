@@ -822,8 +822,43 @@ for i, perceel in enumerate(percelen):
     huidige_fase = perceel.get("dealstage", _("Aankoop"))
 
     with st.expander(f"📍 {perceel.get('locatie', _('Perceel {i}').format(i=i+1))}", expanded=True):
-        # Basisgegevens
-        st.text_input(_("Locatie"), value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
+
+    # Basisgegevens
+    st.text_input(_("Locatie"), value=perceel.get("locatie", ""), key=f"edit_locatie_{i}", disabled=True)
+
+    # =========================
+    # Lovable sales sync
+    # =========================
+
+    sales = perceel.get("lovable_sales", [])
+
+    if sales:
+        st.markdown("### 🏘️ Plot verkopen")
+
+        for sale in sales:
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.write(sale.get("plot_label", "-"))
+
+            with col2:
+                status = sale.get("status", "-")
+
+                if status == "sold":
+                    st.success("VERKOCHT")
+
+                elif status == "reserved":
+                    st.warning("GERESERVEERD")
+
+                else:
+                    st.info(status)
+
+            with col3:
+                koper = sale.get("koper_naam") or "-"
+                st.write(koper)
+
+    if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
 
         if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
             st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
