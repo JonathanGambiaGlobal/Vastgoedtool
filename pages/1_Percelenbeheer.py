@@ -834,7 +834,7 @@ for i, perceel in enumerate(percelen):
             disabled=True
         )
     
-    if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
+        if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
 
         if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
             st.session_state["kaart_focus_buffer"] = perceel.get("polygon")
