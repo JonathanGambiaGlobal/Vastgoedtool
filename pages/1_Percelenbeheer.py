@@ -833,40 +833,6 @@ for i, perceel in enumerate(percelen):
             key=f"edit_locatie_{i}",
             disabled=True
         )
-
-        # =========================
-        # Lovable sales sync
-        # =========================
-
-        sales = perceel.get("lovable_sales", [])
-
-        if sales:
-
-            st.markdown("### 🏘️ Plot verkopen")
-
-            for sale in sales:
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.write(sale.get("plot_label", "-"))
-
-                with col2:
-
-                    status = sale.get("status", "-")
-
-                    if status == "sold":
-                        st.success("VERKOCHT")
-
-                    elif status == "reserved":
-                        st.warning("GERESERVEERD")
-
-                    else:
-                        st.info(status)
-
-                with col3:
-                    koper = sale.get("koper_naam") or "-"
-                    st.write(koper)
     
     if st.button(_("🔍 Zoom in op {loc}").format(loc=perceel.get("locatie")), key=f"zoom_knop_{i}"):
 
@@ -1209,11 +1175,45 @@ for i, perceel in enumerate(percelen):
                 gmd=format_currency(perceel['opbrengst_per_maand_gmd'], "GMD")
             ))
 
-            perceel["verwachte_winst_eur"] = (
-                totaal_opbrengst_eur
-                - perceel.get("verwachte_kosten_eur", 0.0)
-                - aankoop_eur
-            )
+            # =========================
+            # Lovable sales sync
+            # =========================
+    
+            sales = perceel.get("lovable_sales", [])
+    
+            if sales:
+    
+                st.markdown("### 🏘️ Plot verkopen")
+    
+                for sale in sales:
+    
+                    col1, col2, col3 = st.columns(3)
+    
+                    with col1:
+                        st.write(sale.get("plot_label", "-"))
+    
+                    with col2:
+    
+                        status = sale.get("status", "-")
+    
+                        if status == "sold":
+                            st.success("VERKOCHT")
+    
+                        elif status == "reserved":
+                            st.warning("GERESERVEERD")
+    
+                        else:
+                            st.info(status)
+    
+                    with col3:
+                        koper = sale.get("koper_naam") or "-"
+                        st.write(koper)
+                
+                perceel["verwachte_winst_eur"] = (
+                    totaal_opbrengst_eur
+                    - perceel.get("verwachte_kosten_eur", 0.0)
+                    - aankoop_eur
+                )
 
         else:
             perceel["verwachte_opbrengst_eur"] = st.number_input(
