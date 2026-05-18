@@ -1176,36 +1176,62 @@ for i, perceel in enumerate(percelen):
             # =========================
             # Lovable sales sync
             # =========================
-    
+            
             sales = perceel.get("lovable_sales", [])
-    
+            
             if sales:
-    
+            
                 st.markdown("### 🏘️ Plot verkopen")
-    
+            
                 for sale in sales:
-    
-                    col1, col2, col3 = st.columns(3)
-    
-                    with col1:
-                        st.write(sale.get("plot_label", "-"))
-    
-                    with col2:
-    
+            
+                    titel = (
+                        sale.get("plot_label")
+                        or sale.get("plot_id")
+                        or "Plot"
+                    )
+            
+                    with st.expander(titel):
+            
                         status = sale.get("status", "-")
-    
+            
                         if status == "sold":
                             st.success("VERKOCHT")
-    
+            
                         elif status == "reserved":
                             st.warning("GERESERVEERD")
-    
+            
                         else:
                             st.info(status)
-    
-                    with col3:
-                        koper = sale.get("koper_naam") or "-"
-                        st.write(koper)
+            
+                        for key, value in sale.items():
+            
+                            if key == "status":
+                                continue
+            
+                            nette_key = (
+                                key
+                                .replace("_", " ")
+                                .title()
+                            )
+            
+                            if value is None:
+                                value = "-"
+            
+                            # valuta formatting
+                            if (
+                                isinstance(value, (int, float))
+                                and (
+                                    "prijs" in key
+                                    or "eur" in key
+                                    or "gmd" in key
+                                )
+                            ):
+                                value = f"{value:,.0f}"
+            
+                            st.write(
+                                f"**{nette_key}:** {value}"
+                            )
                 
                 perceel["verwachte_winst_eur"] = (
                     totaal_opbrengst_eur
