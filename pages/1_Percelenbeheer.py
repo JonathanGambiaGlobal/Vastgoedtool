@@ -1174,10 +1174,10 @@ for i, perceel in enumerate(percelen):
             ))
 
             # =========================
-            # Lovable sales sync
+            # v_plots sync vanuit Lovable/Supabase
             # =========================
             
-            sales = perceel.get("lovable_sales", [])
+            sales = perceel.get("v_plots", [])
             
             if sales:
             
@@ -1186,9 +1186,9 @@ for i, perceel in enumerate(percelen):
                 for sale in sales:
             
                     titel = (
-                        sale.get("plot_label")
-                        or sale.get("plot_id")
-                        or "Plot"
+                        f"Plot {sale.get('plot_number')}"
+                        if sale.get("plot_number") is not None
+                        else sale.get("plot_id", "Plot")
                     )
             
                     with st.expander(titel):
@@ -1218,11 +1218,11 @@ for i, perceel in enumerate(percelen):
                             if value is None:
                                 value = "-"
             
-                            # valuta formatting
                             if (
                                 isinstance(value, (int, float))
                                 and (
-                                    "prijs" in key
+                                    "price" in key
+                                    or "prijs" in key
                                     or "eur" in key
                                     or "gmd" in key
                                 )
