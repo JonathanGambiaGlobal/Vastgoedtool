@@ -1355,56 +1355,58 @@ for i, perceel in enumerate(percelen):
 
 
         # Admin-sectie: opslaan & perceel verwijderen
-            if is_admin:
-                col1, col2 = st.columns([8, 2])   # brede linker kolom, smalle rechterkolom
-
-                with col1:
-                    if st.button(
-                        _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get('locatie')),
-                        key=f"opslaan_bewerken_{i}"
-                    ):
-                        data = prepare_percelen_for_saving(st.session_state["percelen"])
-
-                        st.write("=== DATA DIE WORDT OPGESLAGEN ===")
-                        st.write(data)
-                        
-                        store.save_percelen(data)
-                        
-                        st.cache_data.clear()
-                        
-                        st.success(
-                            _("Wijzigingen aan {loc} opgeslagen.").format(
-                                loc=perceel.get("locatie")
-                            )
+        if is_admin:
+            col1, col2 = st.columns([8, 2])   # brede linker kolom, smalle rechterkolom
+        
+            with col1:
+                if st.button(
+                    _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get("locatie")),
+                    key=f"opslaan_bewerken_{i}"
+                ):
+                    store.save_percelen(
+                        prepare_percelen_for_saving(st.session_state["percelen"])
+                    )
+                    st.cache_data.clear()
+                    st.success(
+                        _("Wijzigingen aan {loc} opgeslagen.").format(
+                            loc=perceel.get("locatie")
                         )
-
-                with col2:
-                    confirm_key = f"confirm_delete_{i}"
-                    if not st.session_state.get(confirm_key, False):
-                        if st.button(_("🗑 Verwijder perceel"), key=f"delete_{i}"):
-                            st.session_state[confirm_key] = True
-                    else:
-                        with st.error(
-                            _("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden.")
-                        ):
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
-                                    
-                                    st.session_state["percelen"].pop(i)
-                                    store.save_percelen(
-                                        prepare_percelen_for_saving(st.session_state["percelen"])
-                                    )
-                                    st.cache_data.clear()
-                                    st.session_state.pop(confirm_key, None)
-                                    st.success(_("Perceel verwijderd."))
-                                    st.rerun()
-                            with c2:
-                                if st.button(_("↩ Nee, annuleren"), key=f"cancel_delete_{i}"):
-                                    st.session_state.pop(confirm_key, None)
-                                    st.info(_("Verwijderen geannuleerd."))
-            else:
-                st.info(_("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen."))
+                    )
+        
+            with col2:
+                confirm_key = f"confirm_delete_{i}"
+        
+                if not st.session_state.get(confirm_key, False):
+                    if st.button(_("🗑 Verwijder perceel"), key=f"delete_{i}"):
+                        st.session_state[confirm_key] = True
+        
+                else:
+                    with st.error(
+                        _("⚠️ Weet je zeker dat je dit perceel wilt verwijderen? Dit kan niet ongedaan gemaakt worden.")
+                    ):
+                        c1, c2 = st.columns(2)
+        
+                        with c1:
+                            if st.button(_("✅ Ja, definitief verwijderen"), key=f"do_delete_{i}"):
+        
+                                st.session_state["percelen"].pop(i)
+        
+                                store.save_percelen(
+                                    prepare_percelen_for_saving(st.session_state["percelen"])
+                                )
+        
+                                st.cache_data.clear()
+                                st.session_state.pop(confirm_key, None)
+                                st.success(_("Perceel verwijderd."))
+                                st.rerun()
+        
+                        with c2:
+                            if st.button(_("↩ Nee, annuleren"), key=f"cancel_delete_{i}"):
+                                st.session_state.pop(confirm_key, None)
+                                st.info(_("Verwijderen geannuleerd."))
+        
+        else:
+            st.info(_("🔐 Alleen admins kunnen wijzigingen opslaan of percelen verwijderen."))
 
 
 
