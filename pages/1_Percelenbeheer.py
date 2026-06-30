@@ -983,10 +983,7 @@ for i, perceel in enumerate(percelen):
                 "agreement_link": ""
             })
         
-            store.save_percelen(
-                prepare_percelen_for_saving(st.session_state["percelen"])
-            )
-        
+            st.session_state["skip_load"] = True
             st.rerun()
 
         # 📋 Documenten
