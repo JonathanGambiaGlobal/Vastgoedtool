@@ -32,4 +32,5 @@ class DataStore:
         if rows:
             self.client.table("percelen").insert(rows).execute()
 
+
 store = DataStore()
