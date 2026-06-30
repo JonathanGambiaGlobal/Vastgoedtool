@@ -23,14 +23,34 @@ class DataStore:
         return [row["perceel"] for row in response.data]
 
     def save_percelen(self, percelen):
-        # verwijder oude records
-        self.client.table("percelen").delete().neq("id", "").execute()
-
-        # voeg nieuwe records toe
-        rows = [{"perceel": p} for p in percelen]
-
-        if rows:
-            self.client.table("percelen").insert(rows).execute()
+        try:
+            print("DELETE START")
+    
+            response = (
+                self.client
+                .table("percelen")
+                .delete()
+                .neq("id", "")
+                .execute()
+            )
+    
+            print(response)
+    
+            rows = [{"perceel": p} for p in percelen]
+    
+            if rows:
+                response = (
+                    self.client
+                    .table("percelen")
+                    .insert(rows)
+                    .execute()
+                )
+    
+                print(response)
+    
+        except Exception as e:
+            st.exception(e)
+            raise
 
 
 store = DataStore()
