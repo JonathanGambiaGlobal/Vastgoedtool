@@ -942,6 +942,18 @@ for i, perceel in enumerate(percelen):
 
                 rentetype = options[labels.index(choice_label)]
 
+                agreement_link = st.text_input(
+                    "📄 OneDrive overeenkomst",
+                    value=inv.get("agreement_link", ""),
+                    key=f"agreement_link_{i}_{j}"
+                )
+                
+                if agreement_link:
+                    st.link_button(
+                        "📂 Open overeenkomst",
+                        agreement_link
+                    )
+
 
                 _wissel = perceel.get("wisselkoers") or locals().get("wisselkoers", None)
                 nieuwe_investeerders.append(
@@ -952,9 +964,30 @@ for i, perceel in enumerate(percelen):
                         "rente": rente,
                         "winstdeling": winst,
                         "rentetype": rentetype,
+                        "agreement_link": agreement_link,
                     }
                 )
         perceel["investeerders"] = nieuwe_investeerders
+
+        st.divider()
+        
+        if st.button("➕ Investeerder toevoegen", key=f"add_inv_{i}"):
+        
+            perceel.setdefault("investeerders", []).append({
+                "naam": "",
+                "bedrag": 0,
+                "bedrag_eur": 0.0,
+                "rente": 0.0,
+                "winstdeling": 0.0,
+                "rentetype": "at_sale",
+                "agreement_link": ""
+            })
+        
+            store.save_percelen(
+                prepare_percelen_for_saving(st.session_state["percelen"])
+            )
+        
+            st.rerun()
 
         # 📋 Documenten
         st.markdown("#### " + _("📋 Documenten"))
