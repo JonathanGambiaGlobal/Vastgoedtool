@@ -1363,10 +1363,19 @@ for i, perceel in enumerate(percelen):
                         _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get('locatie')),
                         key=f"opslaan_bewerken_{i}"
                     ):
-                        store.save_percelen(prepare_percelen_for_saving(st.session_state["percelen"]))
+                        data = prepare_percelen_for_saving(st.session_state["percelen"])
+
+                        st.write("=== DATA DIE WORDT OPGESLAGEN ===")
+                        st.write(data)
+                        
+                        store.save_percelen(data)
+                        
                         st.cache_data.clear()
+                        
                         st.success(
-                            _("Wijzigingen aan {loc} opgeslagen.").format(loc=perceel.get('locatie'))
+                            _("Wijzigingen aan {loc} opgeslagen.").format(
+                                loc=perceel.get("locatie")
+                            )
                         )
 
                 with col2:
