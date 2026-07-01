@@ -5,13 +5,25 @@ import traceback
 
 class DataStore:
     def __init__(self):
+        print("=== Initialiseren Supabase ===")
+
+        print("SUPABASE URL:")
+        print(st.secrets["SUPABASE_URL"])
+
+        print("SUPABASE KEY (eerste 20 tekens):")
+        print(st.secrets["SUPABASE_ANON_KEY"][:20])
+
         self.client = create_client(
             st.secrets["SUPABASE_URL"],
             st.secrets["SUPABASE_ANON_KEY"]
         )
 
+        print("Supabase client aangemaakt.\n")
+
     def load_percelen(self):
         try:
+            print("=== Laden percelen ===")
+
             response = (
                 self.client
                 .table("percelen")
@@ -19,21 +31,29 @@ class DataStore:
                 .execute()
             )
 
+            print("Load succesvol.")
+            print(response.data)
+
             if not response.data:
                 return []
 
             return [row["perceel"] for row in response.data]
 
-        except Exception:
-            print("=== FOUT BIJ LOAD_PERCELEN ===")
+        except Exception as e:
+            print("\n=== FOUT BIJ LOAD ===")
             traceback.print_exc()
+            print(repr(e))
             raise
 
     def save_percelen(self, percelen):
         try:
-            print("=== START SAVE ===")
+            print("\n=== SAVE START ===")
 
-            print("Verwijderen oude records...")
+            print("Aantal percelen:")
+            print(len(percelen))
+
+            print("DELETE uitvoeren...")
+
             delete_result = (
                 self.client
                 .table("percelen")
@@ -42,12 +62,12 @@ class DataStore:
                 .execute()
             )
 
-            print("DELETE GELUKT")
+            print("DELETE gelukt.")
             print(delete_result)
 
             rows = [{"perceel": p} for p in percelen]
 
-            print(f"Aantal nieuwe records: {len(rows)}")
+            print(f"{len(rows)} records worden ingevoegd.")
 
             if rows:
                 insert_result = (
@@ -57,7 +77,7 @@ class DataStore:
                     .execute()
                 )
 
-                print("INSERT GELUKT")
+                print("INSERT gelukt.")
                 print(insert_result)
 
             print("=== SAVE VOLTOOID ===")
