@@ -1356,22 +1356,41 @@ for i, perceel in enumerate(percelen):
 
         # Admin-sectie: opslaan & perceel verwijderen
         if is_admin:
-            col1, col2 = st.columns([8, 2])   # brede linker kolom, smalle rechterkolom
+            col1, col2 = st.columns([8, 2])
         
             with col1:
                 if st.button(
                     _("💾 Opslaan wijzigingen ({loc})").format(loc=perceel.get("locatie")),
                     key=f"opslaan_bewerken_{i}"
                 ):
-                    store.save_percelen(
-                        prepare_percelen_for_saving(st.session_state["percelen"])
-                    )
-                    st.cache_data.clear()
-                    st.success(
-                        _("Wijzigingen aan {loc} opgeslagen.").format(
-                            loc=perceel.get("locatie")
+                    st.write("🔄 Start opslaan...")
+        
+                    try:
+                        data = prepare_percelen_for_saving(st.session_state["percelen"])
+        
+                        st.write(f"Aantal percelen: {len(data)}")
+                        st.write("Data voorbereid.")
+                        st.write("Start save_percelen()...")
+        
+                        result = store.save_percelen(data)
+        
+                        st.write("save_percelen() voltooid.")
+                        st.write(result)
+        
+                        st.cache_data.clear()
+        
+                        st.success(
+                            _("Wijzigingen aan {loc} opgeslagen.").format(
+                                loc=perceel.get("locatie")
+                            )
                         )
-                    )
+        
+                    except Exception as e:
+                        st.error("❌ Opslaan mislukt")
+                        st.exception(e)
+        
+                        import traceback
+                        st.code(traceback.format_exc(), language="text")
         
             with col2:
                 confirm_key = f"confirm_delete_{i}"
