@@ -58,7 +58,7 @@ class DataStore:
                 self.client
                 .table("percelen")
                 .delete()
-                .neq("id", "")
+                .not_.is_("id", None)
                 .execute()
             )
 
