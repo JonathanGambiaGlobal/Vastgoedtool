@@ -1,21 +1,19 @@
 from supabase import create_client
-import streamlit as st
 import traceback
+
+from settings import require_secret
 
 
 class DataStore:
     def __init__(self):
         print("=== Initialiseren Supabase ===")
 
-        print("SUPABASE URL:")
-        print(st.secrets["SUPABASE_URL"])
-
-        print("SUPABASE KEY (eerste 20 tekens):")
-        print(st.secrets["SUPABASE_ANON_KEY"][:20])
+        url = require_secret("SUPABASE_URL")
+        key = require_secret("SUPABASE_ANON_KEY", "SUPABASE_KEY")
 
         self.client = create_client(
-            st.secrets["SUPABASE_URL"],
-            st.secrets["SUPABASE_ANON_KEY"]
+            url,
+            key,
         )
 
         print("Supabase client aangemaakt.\n")

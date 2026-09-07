@@ -1,5 +1,7 @@
 import streamlit as st
 
+from settings import get_secret
+
 # 🎨 moet ALTIJD eerst
 st.set_page_config(page_title="Quadraat Global", layout="wide")  # 👈 alleen voor browser-tab
 
@@ -57,9 +59,9 @@ MODEL_FALLBACK = _cfg.get("fallback_model", "llama-3.1-8b-instant")
 TEMPERATURE    = float(_cfg.get("temperature", 0.2))
 TOP_P          = float(_cfg.get("top_p", 0.9))
 
-_api_key = st.secrets.get("GROQ_API_KEY")
+_api_key = get_secret("GROQ_API_KEY")
 if not _api_key:
-    st.error(_("⚠️ GROQ_API_KEY ontbreekt in .streamlit/secrets.toml"))
+    st.error(_("⚠️ GROQ_API_KEY ontbreekt in de configuratie."))
     st.stop()
 
 _groq = Groq(api_key=_api_key)
@@ -2245,7 +2247,6 @@ with tab_chat:
         st.session_state.chat_history_tools_beheer.append({"role": "assistant", "content": answer})
 
 # ==== einde Groq-chatblok – Percelenbeheer ====================================
-
 
 
 

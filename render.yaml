@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: vastgoedtool
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run 0_Dashboard.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FXRATES_TOKEN
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false

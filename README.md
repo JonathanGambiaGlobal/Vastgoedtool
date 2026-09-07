@@ -14,3 +14,17 @@
    ```bash
    git clone https://github.com/JonathanGambiaGlobal/Vastgoedtool.git
    cd Vastgoedtool
+   ```
+
+## Configuratie op Render
+
+Stel onder **Environment** de volgende variabelen in:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `GROQ_API_KEY`
+- `FXRATES_TOKEN`
+- `GOOGLE_API_KEY`
+
+Lokaal mogen dezelfde namen ook in `.streamlit/secrets.toml` staan. Zet echte
+sleutels nooit in Git. Render start de app via de meegeleverde `render.yaml`.

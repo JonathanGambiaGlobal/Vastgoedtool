@@ -14,6 +14,8 @@ import gettext
 from typing import Tuple, Callable
 import os, tomllib
 
+from settings import get_secret, require_secret
+
 # Safe fallback voor vertalingen in utils
 _ = st.session_state.get("_", lambda x: x)
 n_ = st.session_state.get("n_", lambda s, p, n: s if n == 1 else p)
@@ -58,11 +60,11 @@ def language_selector(default: str = "nl") -> Tuple[Callable, Callable]:
 
 @st.cache_resource
 def get_supabase() -> Client:
-    url = st.secrets.get("SUPABASE_URL")
-    key = st.secrets.get("SUPABASE_KEY")
+    url = get_secret("SUPABASE_URL")
+    key = get_secret("SUPABASE_ANON_KEY", "SUPABASE_KEY")
 
     if not url or not key:
-        raise ValueError("SUPABASE_URL of SUPABASE_KEY ontbreekt")
+        raise ValueError("SUPABASE_URL of SUPABASE_ANON_KEY ontbreekt")
 
     return create_client(url, key)
 
@@ -88,7 +90,7 @@ ttldays = 3600
 @st.cache_data(ttl=ttldays)
 def get_exchange_rate_eur_to_gmd():
     url = "https://api.fxratesapi.com/latest"
-    headers = {"Authorization": f"Bearer {st.secrets['fxrates_token']}"}
+    headers = {"Authorization": f"Bearer {require_secret('FXRATES_TOKEN', 'fxrates_token')}"}
     params = {"base": "EUR", "symbols": "GMD"}
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code == 200:
@@ -103,7 +105,7 @@ def get_exchange_rate_volatility(dagen=30):
     end_date = date.today()
     start_date = end_date - timedelta(days=dagen)
     url = "https://api.fxratesapi.com/timeseries"
-    headers = {"Authorization": f"Bearer {st.secrets['fxrates_token']}"}
+    headers = {"Authorization": f"Bearer {require_secret('FXRATES_TOKEN', 'fxrates_token')}"}
     params = {
         "base": "EUR", "symbols": "GMD",
         "start_date": start_date.isoformat(),
@@ -122,7 +124,7 @@ def get_exchange_rate_volatility(dagen=30):
 
 # 🧭 3. Geocoding via Google Maps API
 def geocode(locatie: str) -> tuple:
-    api_key = st.secrets["google_api_key"]
+    api_key = require_secret("GOOGLE_API_KEY", "google_api_key")
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {"address": f"{locatie}, Gambia", "key": api_key}
     r = requests.get(url, params=params)
