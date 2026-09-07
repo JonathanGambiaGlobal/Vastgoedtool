@@ -129,11 +129,13 @@ st.markdown(
 
     <div class="pbi-wrapper">
         <iframe title="PBI extensie Gambia, dashboard"
-                src="HIER_JE_NIEUWE_LINK_PLAKKEN&navContentPaneEnabled=false&filterPaneEnabled=false&toolbarEnabled=false"
+                src="https://app.powerbi.com/view?r=eyJrIjoiYTZjNGYzYWQtZTUwOS00ZjRmLWEzNDUtMDc5Njc3YjQ5ODE4IiwidCI6IjE5ZjY4NTk4LWZiMzUtNDVhMS1hNzEwLTA1NmI1NTFlODkyZCIsImMiOjl9&pageName=657908c8083714fca2c4&navContentPaneEnabled=false&filterPaneEnabled=false&toolbarEnabled=false"
                 allowFullScreen="true"></iframe>
         <div class="pbi-overlay"></div>
     </div>
-
+    """,
+    unsafe_allow_html=True,
+)
 
 # 💬 Chat-tab
 tab_chat, = st.tabs([_("💬 Chat (Groq)")])
