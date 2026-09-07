@@ -169,7 +169,7 @@ with tab_chat:
         return m[0] if m else None
 
     def _resolve_loc(name: str):
-        """Exact → fuzzy → None. Return (perceel_dict, suggestie)."""
+        """Exact -> fuzzy -> None. Return (perceel_dict, suggestie)."""
         for p in _percelen_norm():
             if (p.get("locatie","").lower().strip() == (name or "").lower().strip()):
                 return p, None
