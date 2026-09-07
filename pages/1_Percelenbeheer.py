@@ -14,7 +14,7 @@ from utils import (
     format_currency,
 )
 
-from datastore import store
+from datastore import get_store
 
 # 🌐 taal instellen
 _, n_ = language_selector()
@@ -37,6 +37,12 @@ from auth import login_check
 
 # 🔐 login altijd eerst
 login_check()
+
+try:
+    store = get_store()
+except RuntimeError as exc:
+    st.error(str(exc))
+    st.stop()
 
 # Na login_check()
 is_admin = (st.session_state.get("rol") == "admin")
@@ -2247,7 +2253,6 @@ with tab_chat:
         st.session_state.chat_history_tools_beheer.append({"role": "assistant", "content": answer})
 
 # ==== einde Groq-chatblok – Percelenbeheer ====================================
-
 
 
 

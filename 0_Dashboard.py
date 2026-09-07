@@ -26,13 +26,19 @@ from utils import (
     verdeel_winst,
 )
 
-from datastore import store
+from datastore import get_store
 
 # auth
 from auth import login_check
 
 # 🔐 login eerst
 login_check()
+
+try:
+    store = get_store()
+except RuntimeError as exc:
+    st.error(str(exc))
+    st.stop()
 
 # 🌐 taal instellen
 _, n_ = language_selector()
@@ -572,4 +578,3 @@ with tab_chat:
 
         st.session_state.chat_history_tools_dashboard.append({"role": "assistant", "content": answer})
 # ==== einde Groq-chatblok – Dashboard =========================================
-

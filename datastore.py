@@ -1,4 +1,5 @@
 from supabase import create_client
+import streamlit as st
 import traceback
 
 from settings import require_secret
@@ -91,4 +92,7 @@ class DataStore:
             raise
 
 
-store = DataStore()
+@st.cache_resource
+def get_store() -> DataStore:
+    """Maak de Supabase-client pas aan wanneer de app hem echt nodig heeft."""
+    return DataStore()
